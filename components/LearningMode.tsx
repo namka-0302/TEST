@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Question } from '../types';
 
 interface LearningModeProps {
@@ -8,21 +8,27 @@ interface LearningModeProps {
 }
 
 const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) => {
-  // sessionQueue lưu trữ thứ tự ID các câu hỏi sẽ xuất hiện trong phiên này
   const [sessionQueue, setSessionQueue] = useState<string[]>([]);
   const [currentQueueIdx, setCurrentQueueIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Khởi tạo hàng đợi ban đầu: Ưu tiên những câu chưa thuộc (seenCount = 0)
   useEffect(() => {
     if (questions.length > 0 && !isLoaded) {
       const unseen = questions.filter(q => q.seenCount === 0).map(q => q.id);
       const seen = questions.filter(q => q.seenCount > 0).sort((a, b) => a.seenCount - b.seenCount).map(q => q.id);
       
-      // Trộn ngẫu nhiên danh sách câu hỏi để bắt đầu
-      const initialQueue = [...unseen, ...seen];
+      const shuffleArray = (array: string[]) => {
+        const arr = [...array];
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+      };
+
+      const initialQueue = [...shuffleArray(unseen), ...shuffleArray(seen)];
       setSessionQueue(initialQueue);
       setIsLoaded(true);
     }
@@ -31,31 +37,26 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
   const currentQId = sessionQueue[currentQueueIdx];
   const currentQ = useMemo(() => questions.find(q => q.id === currentQId), [questions, currentQId]);
 
+  // Khai báo isAnswerCorrect ở scope component để dùng trong JSX
+  const isAnswerCorrect = useMemo(() => {
+    if (!currentQ || !selectedChoiceId) return false;
+    return selectedChoiceId === currentQ.choices.find(c => c.isCorrect)?.id;
+  }, [currentQ, selectedChoiceId]);
+
   const handleNext = () => {
     if (!currentQ) return;
 
-    const correctChoice = currentQ.choices.find(c => c.isCorrect);
-    const isAnswerCorrectLocal = selectedChoiceId === correctChoice?.id;
-
-    if (isAnswerCorrectLocal) {
-      // ĐÚNG: Gửi tín hiệu đánh dấu đã thuộc lên hệ thống
+    if (isAnswerCorrect) {
       onMarkSeen(currentQ.id);
-      
-      // Chuyển sang câu tiếp theo trong hàng đợi
       setCurrentQueueIdx(prev => prev + 1);
     } else {
-      // SAI: Chèn câu này vào vị trí cách đó 5 câu trong tương lai
       const newQueue = [...sessionQueue];
-      // Vị trí chèn là index hiện tại + 5 (làm thêm 4 câu rồi gặp lại)
       const targetIdx = currentQueueIdx + 5;
-      
-      // Chèn ID câu hiện tại vào vị trí target
       if (targetIdx >= newQueue.length) {
         newQueue.push(currentQ.id);
       } else {
         newQueue.splice(targetIdx, 0, currentQ.id);
       }
-      
       setSessionQueue(newQueue);
       setCurrentQueueIdx(prev => prev + 1);
     }
@@ -70,37 +71,31 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
     setRevealed(true);
   };
 
-  const handleResetProgress = () => {
-    if (confirm("Bạn có muốn bắt đầu lại phiên học từ đầu?")) {
-      setIsLoaded(false);
-      setCurrentQueueIdx(0);
-    }
-  };
-
   if (questions.length === 0) {
     return (
-      <div className="max-w-2xl mx-auto py-10 px-4 text-center bg-white rounded-3xl border border-gray-100 shadow-sm mt-10">
-        <i className="fas fa-book-reader text-5xl text-indigo-100 mb-4"></i>
-        <h2 className="text-xl font-bold text-gray-800">Chưa có nội dung</h2>
-        <p className="text-gray-400 mt-2 text-sm">Hãy thêm câu hỏi vào ngân hàng để bắt đầu.</p>
+      <div className="max-w-2xl mx-auto py-20 text-center bg-white rounded-[3rem] border border-gray-100 shadow-xl mt-10 px-6">
+        <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 text-3xl">
+          <i className="fas fa-book-reader"></i>
+        </div>
+        <h2 className="text-2xl font-black text-gray-900">Chưa có câu hỏi</h2>
+        <p className="text-gray-400 mt-2 font-medium">Hãy thêm câu hỏi vào ngân hàng để bắt đầu chế độ học tập thông minh.</p>
       </div>
     );
   }
 
-  // Nếu đã hoàn thành hết hàng đợi
   if (isLoaded && currentQueueIdx >= sessionQueue.length) {
     return (
-      <div className="max-w-2xl mx-auto py-10 px-4 text-center bg-white rounded-3xl border border-gray-100 shadow-xl mt-10 animate-fadeIn">
-        <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">
+      <div className="max-w-2xl mx-auto py-20 text-center bg-white rounded-[3rem] border border-gray-100 shadow-xl mt-10 px-6 animate-fadeIn">
+        <div className="w-24 h-24 bg-green-100 text-green-600 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 text-4xl shadow-lg shadow-green-100 rotate-6">
           <i className="fas fa-check-double"></i>
         </div>
-        <h2 className="text-2xl font-black text-gray-900">Tuyệt vời!</h2>
-        <p className="text-gray-500 mt-2 font-medium">Bạn đã hoàn thành phiên học hiện tại.</p>
+        <h2 className="text-3xl font-black text-gray-900">Hoàn thành xuất sắc!</h2>
+        <p className="text-gray-500 mt-3 font-medium text-lg">Bạn đã ôn tập xong tất cả các câu hỏi trong phiên này.</p>
         <button 
           onClick={() => { setIsLoaded(false); setCurrentQueueIdx(0); }}
-          className="mt-8 px-8 py-3 bg-indigo-600 text-white rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition-all"
+          className="mt-10 px-12 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl hover:bg-indigo-700 transition-all active:scale-95"
         >
-          TIẾP TỤC HỌC MỚI
+          TIẾP TỤC ÔN TẬP
         </button>
       </div>
     );
@@ -108,73 +103,70 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
 
   if (!currentQ) return null;
 
-  // Calculate if the selected answer is correct to be used in the JSX below
-  const isAnswerCorrect = selectedChoiceId === currentQ.choices.find(c => c.isCorrect)?.id;
-
-  // TIẾN ĐỘ THỰC TẾ (Cả hệ thống)
   const totalMastered = questions.filter(q => q.seenCount > 0).length;
   const globalProgress = Math.round((totalMastered / questions.length) * 100);
-  
-  // Tiến độ phiên học hiện tại
   const sessionProgress = (currentQueueIdx / sessionQueue.length) * 100;
 
   return (
-    <div className="max-w-2xl mx-auto flex flex-col h-[calc(100dvh-7rem)] md:h-auto animate-fadeIn gap-2 px-1">
-      <div className="flex items-center justify-between px-3 py-1">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-[10px]">
+    <div className="max-w-2xl mx-auto flex flex-col h-[calc(100dvh-7rem)] md:h-auto animate-fadeIn gap-4 px-1 pb-10">
+      <div className="flex items-center justify-between px-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
             <i className="fas fa-lightbulb"></i>
           </div>
-          <h1 className="text-sm font-black text-gray-900 leading-none">Chế độ học tập</h1>
+          <div>
+            <h1 className="text-sm font-black text-gray-900 uppercase tracking-tighter">Chế độ học tập</h1>
+            <p className="text-[10px] font-bold text-gray-400">Ghi nhớ theo phương pháp Spaced Repetition</p>
+          </div>
         </div>
         <button 
-          onClick={handleResetProgress}
-          className="text-[10px] font-black text-gray-400 hover:text-indigo-600 transition-colors flex items-center gap-1"
+          onClick={() => { if(confirm("Học lại từ đầu?")) { setIsLoaded(false); setCurrentQueueIdx(0); } }}
+          className="text-[10px] font-black text-gray-400 hover:text-indigo-600 transition-colors flex items-center gap-1 bg-white px-3 py-1.5 rounded-xl border border-gray-50 shadow-sm"
         >
-          <i className="fas fa-redo text-[8px]"></i> Học lại từ đầu
+          <i className="fas fa-redo text-[8px]"></i> RESET
         </button>
       </div>
 
-      <div className="flex-grow flex flex-col bg-white rounded-[2rem] shadow-xl border border-gray-100 overflow-hidden relative">
-        <div className="h-1.5 w-full bg-gray-50 flex">
+      <div className="flex-grow flex flex-col bg-white rounded-[3rem] shadow-2xl border border-gray-50 overflow-hidden relative">
+        <div className="h-2 w-full bg-gray-50 flex">
           <div 
-            className="bg-indigo-600 h-full transition-all duration-300"
+            className="bg-indigo-600 h-full transition-all duration-500 ease-out"
             style={{ width: `${sessionProgress}%` }}
           ></div>
         </div>
 
-        <div className="flex-grow overflow-y-auto p-5 md:p-8 space-y-5 custom-scrollbar flex flex-col">
+        <div className="flex-grow overflow-y-auto p-8 md:p-12 space-y-8 custom-scrollbar flex flex-col">
           <div className="flex justify-between items-center">
              <div className="flex gap-2">
-                <span className={`text-[8px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest ${
+                <span className={`text-[9px] px-3 py-1 rounded-full font-black uppercase tracking-widest ${
                   currentQ.difficulty === 'Easy' ? 'bg-green-50 text-green-600' :
                   currentQ.difficulty === 'Hard' ? 'bg-red-50 text-red-600' : 'bg-yellow-50 text-yellow-600'
                 }`}>
                   {currentQ.difficulty}
                 </span>
                 {currentQ.seenCount > 0 && (
-                  <span className="text-[8px] px-2 py-0.5 bg-green-50 text-green-600 rounded-full font-black uppercase tracking-widest flex items-center gap-1">
+                  <span className="text-[9px] px-3 py-1 bg-green-50 text-green-600 rounded-full font-black uppercase tracking-widest flex items-center gap-1 border border-green-100">
                     <i className="fas fa-check"></i> Đã thuộc
                   </span>
                 )}
              </div>
-             <span className="font-mono text-[10px] font-black text-gray-300 uppercase tracking-tighter">
+             <span className="font-mono text-[10px] font-black text-gray-300 uppercase">
                 Câu {currentQueueIdx + 1} / {sessionQueue.length}
              </span>
           </div>
 
-          <h3 className="text-lg md:text-xl font-bold text-gray-800 leading-snug">
+          <h3 className="text-xl md:text-2xl font-black text-gray-800 leading-tight">
             {currentQ.text}
           </h3>
 
-          <div className="grid grid-cols-1 gap-2 pt-1">
+          <div className="grid grid-cols-1 gap-3 pt-4">
             {currentQ.choices.map(choice => {
               const isCorrect = choice.isCorrect;
               const isSelected = selectedChoiceId === choice.id;
               
-              let statusClasses = 'bg-gray-50 border-gray-50 hover:border-indigo-200';
+              let statusClasses = 'bg-gray-50 border-gray-50 hover:border-indigo-200 hover:bg-white';
               if (revealed) {
-                if (isCorrect) statusClasses = 'bg-green-50 border-green-600 text-green-800 scale-[1.01] shadow-sm z-10';
+                if (isCorrect) statusClasses = 'bg-green-50 border-green-600 text-green-800 scale-[1.02] shadow-lg z-10';
                 else if (isSelected) statusClasses = 'bg-red-50 border-red-600 text-red-800 opacity-60';
                 else statusClasses = 'bg-gray-50 border-gray-50 opacity-40';
               }
@@ -184,45 +176,50 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
                   key={choice.id}
                   disabled={revealed}
                   onClick={() => handleChoiceSelect(choice.id)}
-                  className={`flex items-center gap-3 p-3.5 md:p-5 rounded-2xl border-2 transition-all text-left group ${statusClasses}`}
+                  className={`flex items-center gap-4 p-5 md:p-6 rounded-[2rem] border-2 transition-all text-left group ${statusClasses}`}
                 >
-                  <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center font-bold text-sm md:text-lg shrink-0 transition-colors ${
-                    revealed && isCorrect ? 'bg-green-600 text-white' : 'bg-white text-gray-400 border border-gray-100 group-hover:text-indigo-600'
+                  <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center font-black text-base md:text-xl shrink-0 transition-all ${
+                    revealed && isCorrect ? 'bg-green-600 text-white shadow-lg' : 'bg-white text-gray-400 border border-gray-100 group-hover:text-indigo-600'
                   }`}>
                     {choice.label}
                   </div>
-                  <span className="font-bold text-sm md:text-base text-gray-700 flex-grow">{choice.text}</span>
-                  {revealed && isCorrect && <i className="fas fa-check-circle text-green-600 text-lg animate-bounce"></i>}
-                  {revealed && isSelected && !isCorrect && <i className="fas fa-times-circle text-red-600 text-lg"></i>}
+                  <span className="font-bold text-base md:text-lg text-gray-700 flex-grow">{choice.text}</span>
+                  {revealed && isCorrect && <i className="fas fa-check-circle text-green-600 text-2xl animate-bounce"></i>}
+                  {revealed && isSelected && !isCorrect && <i className="fas fa-times-circle text-red-600 text-2xl"></i>}
                 </button>
               );
             })}
           </div>
 
           {revealed && (
-            <div className="animate-slideUp mt-2 pb-2">
-              <div className={`p-4 rounded-2xl border relative ${
+            <div className="animate-slideUp mt-4 pb-2">
+              <div className={`p-6 rounded-[2.5rem] border-2 relative overflow-hidden ${
                 isAnswerCorrect ? 'bg-green-50 border-green-100' : 'bg-indigo-50 border-indigo-100'
               }`}>
-                <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${
+                <div className={`text-[10px] font-black uppercase tracking-widest mb-2 ${
                   isAnswerCorrect ? 'text-green-600' : 'text-indigo-400'
                 }`}>
-                  {isAnswerCorrect ? 'Bạn trả lời đúng!' : 'Cần chú ý hơn'}
-                </p>
-                <p className="text-xs md:text-sm text-indigo-900 leading-relaxed font-medium italic">
+                  {isAnswerCorrect ? 'CHÍNH XÁC!' : 'CẦN CHÚ Ý HƠN'}
+                </div>
+                <p className="text-sm md:text-base text-indigo-900 leading-relaxed font-bold italic">
                   {currentQ.explanation || 'Hãy ghi nhớ đáp án đúng là ' + currentQ.choices.find(c => c.isCorrect)?.label + '.'}
-                  {!isAnswerCorrect && <span className="block mt-2 font-black text-red-600 uppercase text-[10px]">Câu này sẽ xuất hiện lại sau 4 câu nữa.</span>}
                 </p>
+                {!isAnswerCorrect && (
+                   <div className="mt-4 flex items-center gap-2 text-red-600">
+                      <i className="fas fa-redo-alt animate-spin-slow"></i>
+                      <span className="font-black text-[10px] uppercase">Câu này sẽ lặp lại sau 4 câu nữa</span>
+                   </div>
+                )}
               </div>
             </div>
           )}
         </div>
 
         {revealed && (
-          <div className="p-4 bg-white border-t border-gray-50 mt-auto">
+          <div className="p-6 bg-white border-t border-gray-50 mt-auto">
             <button 
               onClick={handleNext}
-              className="w-full py-4 bg-gray-900 text-white rounded-2xl font-black text-sm hover:bg-black shadow-xl transition-all flex items-center justify-center gap-2 group active:scale-95"
+              className="w-full py-5 bg-gray-900 text-white rounded-3xl font-black text-sm hover:bg-black shadow-2xl transition-all flex items-center justify-center gap-3 group active:scale-95"
             >
               CÂU TIẾP THEO
               <i className="fas fa-arrow-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
@@ -231,23 +228,23 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
         )}
       </div>
 
-      <div className="bg-indigo-900 text-white px-5 py-3 rounded-2xl shadow-lg flex items-center justify-between shrink-0 mb-2">
-        <div className="flex items-center gap-3">
-          <div className="relative w-8 h-8">
-            <svg className="w-8 h-8 -rotate-90">
-              <circle className="text-white/10" strokeWidth="3" stroke="currentColor" fill="transparent" r="14" cx="16" cy="16" />
-              <circle className="text-indigo-400" strokeWidth="3" strokeDasharray={88} strokeDashoffset={88 - (88 * globalProgress / 100)} strokeLinecap="round" stroke="currentColor" fill="transparent" r="14" cx="16" cy="16" />
+      <div className="bg-indigo-950 text-white px-8 py-4 rounded-[2.5rem] shadow-xl flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="relative w-10 h-10">
+            <svg className="w-10 h-10 -rotate-90">
+              <circle className="text-white/10" strokeWidth="4" stroke="currentColor" fill="transparent" r="18" cx="20" cy="20" />
+              <circle className="text-indigo-400" strokeWidth="4" strokeDasharray={113} strokeDashoffset={113 - (113 * globalProgress / 100)} strokeLinecap="round" stroke="currentColor" fill="transparent" r="18" cx="20" cy="20" />
             </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black">{globalProgress}%</span>
+            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black">{globalProgress}%</span>
           </div>
           <div>
-            <p className="text-[9px] font-black uppercase text-indigo-300 tracking-widest leading-none">TỔNG TIẾN ĐỘ</p>
-            <p className="text-[10px] font-bold mt-1">{totalMastered} / {questions.length} câu đã thuộc</p>
+            <p className="text-[9px] font-black uppercase text-indigo-300 tracking-widest leading-none">TIẾN ĐỘ TỔNG THỂ</p>
+            <p className="text-xs font-bold mt-1.5">{totalMastered} / {questions.length} câu đã thuộc</p>
           </div>
         </div>
         <div className="text-right">
-          <p className="text-sm font-black leading-none">{questions.length - totalMastered}</p>
-          <p className="text-[8px] font-black uppercase text-indigo-300 tracking-tighter mt-1">CẦN HỌC</p>
+          <p className="text-2xl font-black leading-none">{questions.length - totalMastered}</p>
+          <p className="text-[8px] font-black uppercase text-indigo-300 tracking-tighter mt-1">CẦN ÔN TẬP</p>
         </div>
       </div>
     </div>

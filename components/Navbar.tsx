@@ -8,9 +8,10 @@ interface NavbarProps {
   user: User;
   onLogout: () => void;
   isCloud?: boolean;
+  isSyncing?: boolean;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ user, onLogout, isCloud }) => {
+const Navbar: React.FC<NavbarProps> = ({ user, onLogout, isCloud, isSyncing }) => {
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const isAdmin = user.role === 'Admin';
@@ -37,15 +38,15 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, isCloud }) => {
           </div>
           <span className="font-black text-lg tracking-tight text-gray-900">QuizMaster</span>
           
-          <div className={`ml-2 flex items-center gap-1.5 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-tighter transition-all ${
-            db.connectionType === 'Vercel' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
+          <div className={`ml-2 flex items-center gap-2 px-3 py-1.5 rounded-full text-[8px] font-black uppercase tracking-tighter transition-all ${
+            isCloud ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
           }`}>
-            <span className={`relative flex h-1.5 w-1.5 ${db.connectionType === 'Vercel' ? 'flex' : 'hidden'}`}>
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
+            <span className={`relative flex h-2 w-2 ${isCloud ? 'flex' : 'hidden'}`}>
+              <span className={`absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 ${isSyncing ? 'animate-ping' : ''}`}></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
             </span>
-            <i className={`fas ${db.connectionType === 'Vercel' ? 'fa-cloud' : 'fa-house-user'}`}></i>
-            {db.connectionType === 'Vercel' ? 'Cloud Sync' : 'Offline'}
+            <i className={`fas ${isSyncing ? 'fa-sync-alt fa-spin' : isCloud ? 'fa-cloud' : 'fa-house-user'}`}></i>
+            <span className="hidden sm:inline">{isSyncing ? 'Đang đồng bộ...' : isCloud ? 'Cloud Sync' : 'Offline'}</span>
           </div>
         </Link>
         

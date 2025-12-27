@@ -29,18 +29,22 @@ const App: React.FC = () => {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [results, setResults] = useState<QuizResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   
   const lastSyncRef = useRef<number>(0);
-  const isUpdatingRef = useRef<boolean>(false); // Flag để chặn sync khi đang update
+  const isUpdatingRef = useRef<boolean>(false);
 
   const syncData = useCallback(async (isInitial = false) => {
-    // Chặn sync nếu đang có update cục bộ hoặc vừa mới update xong (trong 3 giây)
     if (isUpdatingRef.current) return;
-    if (!isInitial && Date.now() - lastSyncRef.current < 3000) return;
+    if (!isInitial && Date.now() - lastSyncRef.current < 2000) return;
     
+    setIsSyncing(true);
     lastSyncRef.current = Date.now();
 
     try {
+      // Đảm bảo db đã check connection xong trước khi sync lần đầu
+      if (isInitial) await db.checkConnection();
+
       const [qData, quizData, resData, accData] = await Promise.all([
         db.getQuestions(),
         db.getQuizzes(),
@@ -48,11 +52,26 @@ const App: React.FC = () => {
         db.getAccounts()
       ]);
 
-      // Chỉ cập nhật state nếu fetch thành công (không null)
-      if (qData) setQuestions(qData.length > 0 ? qData : (db.isCloud ? [] : SEED_QUESTIONS));
-      if (quizData) setQuizzes(quizData);
-      if (resData) setResults(resData);
-      if (accData) setAccounts(accData.length > 0 ? accData : (db.isCloud ? [] : DEFAULT_ACCOUNTS));
+      // QUAN TRỌNG: Nếu đang ở chế độ Cloud, chúng ta chấp nhận mảng rỗng [] từ server
+      // Không tự ý fallback về SEED_QUESTIONS nếu server thực sự không có dữ liệu
+      if (qData !== null) {
+        if (db.isCloud) {
+          setQuestions(qData);
+        } else {
+          setQuestions(qData.length > 0 ? qData : SEED_QUESTIONS);
+        }
+      }
+      
+      if (quizData !== null) setQuizzes(quizData);
+      if (resData !== null) setResults(resData);
+      
+      if (accData !== null) {
+        if (db.isCloud) {
+          setAccounts(accData.length > 0 ? accData : DEFAULT_ACCOUNTS);
+        } else {
+          setAccounts(accData.length > 0 ? accData : DEFAULT_ACCOUNTS);
+        }
+      }
 
       const savedUser = localStorage.getItem('quizmaster_user');
       if (savedUser && !user) setUser(JSON.parse(savedUser));
@@ -61,38 +80,30 @@ const App: React.FC = () => {
     } catch (err) {
       console.error("Lỗi đồng bộ dữ liệu:", err);
       setLoading(false);
+    } finally {
+      setTimeout(() => setIsSyncing(false), 800);
     }
   }, [user]);
 
   useEffect(() => {
     syncData(true);
 
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key?.startsWith('quizmaster_')) syncData();
-    };
-    window.addEventListener('storage', handleStorageChange);
-
     const syncInterval = setInterval(() => {
       syncData();
-    }, 5000);
+    }, 10000); // 10s một lần để tiết kiệm tài nguyên Cloud
 
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(syncInterval);
-    };
+    return () => clearInterval(syncInterval);
   }, [syncData]);
 
-  // Hàm wrapper để quản lý việc cập nhật dữ liệu an toàn
   const safeUpdate = async (updateFn: () => Promise<void>) => {
-    isUpdatingRef.current = true; // Chặn sync
+    isUpdatingRef.current = true;
     try {
       await updateFn();
-      lastSyncRef.current = Date.now(); // Reset bộ đếm chặn sync
+      lastSyncRef.current = Date.now();
     } finally {
-      // Cho phép sync lại sau 2 giây để chắc chắn server đã ổn định
       setTimeout(() => {
         isUpdatingRef.current = false;
-      }, 2000);
+      }, 3000);
     }
   };
 
@@ -164,18 +175,32 @@ const App: React.FC = () => {
 
   const handleLogin = (u: User | null) => {
     setUser(u);
-    if (u) localStorage.setItem('quizmaster_user', JSON.stringify(u));
-    else localStorage.removeItem('quizmaster_user');
+    if (u) {
+      localStorage.setItem('quizmaster_user', JSON.stringify(u));
+      syncData(true); // Sync ngay khi login
+    } else {
+      localStorage.removeItem('quizmaster_user');
+    }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-indigo-900 text-white">
-        <div className="w-16 h-16 bg-white/10 rounded-3xl flex items-center justify-center mb-6 animate-pulse">
-           <i className="fas fa-graduation-cap text-3xl"></i>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-indigo-900 text-white p-6">
+        <div className="relative">
+          <div className="w-20 h-20 bg-white/10 rounded-[2.5rem] flex items-center justify-center mb-8 animate-float">
+             <i className="fas fa-graduation-cap text-4xl"></i>
+          </div>
+          <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full border-4 border-indigo-900 animate-pulse"></div>
         </div>
-        <h2 className="text-lg font-black tracking-tight">QuizMaster AI</h2>
-        <p className="text-indigo-300 text-[10px] mt-2 font-bold uppercase tracking-widest">Đang thiết lập Cloud Sync...</p>
+        <h2 className="text-2xl font-black tracking-tight">QuizMaster AI</h2>
+        <div className="mt-4 flex flex-col items-center">
+           <div className="flex gap-1 mb-2">
+              <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
+              <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+              <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+           </div>
+           <p className="text-indigo-300 text-[10px] font-black uppercase tracking-[0.2em]">Initial Cloud Syncing</p>
+        </div>
       </div>
     );
   }
@@ -195,11 +220,11 @@ const App: React.FC = () => {
   return (
     <HashRouter>
       <div className="min-h-screen flex flex-col bg-gray-50/50">
-        <Navbar user={user} onLogout={() => handleLogin(null)} isCloud={db.isCloud} />
+        <Navbar user={user} onLogout={() => handleLogin(null)} isCloud={db.isCloud} isSyncing={isSyncing} />
         
         <main className="flex-grow container mx-auto px-4 py-6">
           <Routes>
-            <Route path="/" element={<Dashboard user={user} questions={questions} quizzes={quizzes} accounts={accounts} results={results} onDeleteQuiz={deleteQuiz} />} />
+            <Route path="/" element={<Dashboard user={user} questions={questions} quizzes={quizzes} accounts={accounts} results={results} onDeleteQuiz={deleteQuiz} onManualSync={() => syncData(true)} />} />
             
             {isAdmin && (
               <>
