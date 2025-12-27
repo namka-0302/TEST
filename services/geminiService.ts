@@ -1,33 +1,34 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
-const API_KEY = process.env.API_KEY || "";
-
 export const parseQuestionBatch = async (textChunk: string, batchIndex: number) => {
-  if (!API_KEY) {
-    throw new Error("API Key is missing.");
+  // process.env.API_KEY sẽ được Vite thay thế bằng giá trị thực tế lúc build trên Vercel
+  const apiKey = process.env.API_KEY;
+
+  if (!apiKey) {
+    throw new Error("Hệ thống chưa cấu hình API Key. Vui lòng thêm API_KEY vào Environment Variables trên Vercel.");
   }
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = new GoogleGenAI({ apiKey });
   
   const systemInstruction = `
-    You are an expert educational content parser. 
-    Task: Extract multiple-choice questions from the provided text extracted from a PDF (Batch ${batchIndex}).
+    Bạn là một chuyên gia phân tích nội dung giáo dục.
+    Nhiệm vụ: Trích xuất các câu hỏi trắc nghiệm từ văn bản PDF được cung cấp (Batch ${batchIndex}).
     
-    Rules:
-    1. Identify questions starting with "Câu X:" or "Question X:".
-    2. Identify choices starting with A., B., C., or D.
-    3. Determine the correct answer. In PDF text, this is often marked by an asterisk (*), a checkmark, a different prefix, or explicitly mentioned in the text.
-    4. Extract "Explanation" or "Giải thích" if present.
-    5. Assign difficulty: 'Easy', 'Medium', or 'Hard'.
+    Quy tắc:
+    1. Nhận diện câu hỏi bắt đầu bằng "Câu X:" hoặc con số.
+    2. Nhận diện các lựa chọn A, B, C, D.
+    3. Xác định đáp án đúng dựa trên các ký hiệu (như * hoặc in đậm) hoặc ngữ cảnh.
+    4. Trích xuất "Giải thích" nếu có.
+    5. Gán độ khó: 'Easy', 'Medium', hoặc 'Hard'.
     
-    Output: A clean JSON array of objects.
+    Đầu ra: Trả về một mảng JSON các đối tượng câu hỏi.
   `;
 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Extract questions from this text Batch:\n\n${textChunk}`,
+      contents: `Trích xuất câu hỏi từ đoạn văn bản này:\n\n${textChunk}`,
       config: {
         systemInstruction,
         responseMimeType: "application/json",
@@ -69,7 +70,7 @@ export const parseQuestionBatch = async (textChunk: string, batchIndex: number) 
       }))
     }));
   } catch (error) {
-    console.error(`Error in Batch ${batchIndex}:`, error);
+    console.error(`Lỗi tại Batch ${batchIndex}:`, error);
     throw error;
   }
 };

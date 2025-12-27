@@ -30,7 +30,6 @@ const App: React.FC = () => {
     const savedUser = localStorage.getItem('quizmaster_user');
     const savedAccounts = localStorage.getItem('quizmaster_accounts');
     
-    // Nạp câu hỏi từ file PDF (seed data) nếu chưa có dữ liệu nào
     if (savedQuestions) {
       setQuestions(JSON.parse(savedQuestions));
     } else {
@@ -97,8 +96,12 @@ const App: React.FC = () => {
   return (
     <HashRouter>
       <div className="min-h-screen flex flex-col bg-gray-50/50">
+        {/* Thêm khoảng trống phía trên cho iPhone Notch nếu cần */}
+        <div className="h-[env(safe-area-inset-top)] bg-white sticky top-0 z-[110]"></div>
+        
         <Navbar user={user} onLogout={logout} />
-        <main className="flex-grow container mx-auto px-4 py-8">
+        
+        <main className="flex-grow container mx-auto px-4 py-6 md:py-8">
           <Routes>
             <Route path="/" element={<Dashboard user={user} questions={questions} quizzes={quizzes} />} />
             
@@ -117,10 +120,11 @@ const App: React.FC = () => {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
-        <footer className="bg-white border-t py-8 text-center text-gray-400 text-xs">
+
+        <footer className="bg-white border-t py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-center text-gray-400 text-[10px] uppercase tracking-widest font-black">
           <div className="container mx-auto">
-            <p className="mb-2 font-bold text-gray-500">QuizMaster AI System</p>
-            <p>© 2024 - Enterprise Edition v3.0. Powered by Gemini Flash.</p>
+            <p className="mb-1 text-gray-500">QuizMaster AI System</p>
+            <p>© 2024 - Mobile Optimized v3.5</p>
           </div>
         </footer>
       </div>
