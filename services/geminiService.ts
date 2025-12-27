@@ -2,14 +2,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 export const parseQuestionBatch = async (textChunk: string, batchIndex: number) => {
-  // process.env.API_KEY sẽ được Vite thay thế bằng giá trị thực tế lúc build trên Vercel
-  const apiKey = process.env.API_KEY;
-
-  if (!apiKey) {
-    throw new Error("Hệ thống chưa cấu hình API Key. Vui lòng thêm API_KEY vào Environment Variables trên Vercel.");
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
+  // Use GoogleGenAI with process.env.API_KEY directly as per guidelines.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const systemInstruction = `
     Bạn là một chuyên gia phân tích nội dung giáo dục.
@@ -59,6 +53,7 @@ export const parseQuestionBatch = async (textChunk: string, batchIndex: number) 
       }
     });
 
+    // response.text is a property, not a method.
     const data = JSON.parse(response.text || "[]");
     return data.map((q: any) => ({
       ...q,

@@ -46,4 +46,7 @@ export interface QuizResult {
   answers: Record<string, string>; // questionId -> choiceId
   quizId: string;
   timestamp: number;
+  userId?: string;
+  userName?: string;
+  quizTitle?: string;
 }

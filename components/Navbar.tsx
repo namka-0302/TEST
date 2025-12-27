@@ -15,10 +15,10 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
 
   const navItems = isAdmin ? [
     { name: 'Tổng quan', path: '/', icon: 'fa-chart-line' },
-    { name: 'Tải PDF', path: '/upload', icon: 'fa-file-pdf' },
-    { name: 'Thêm câu hỏi', path: '/manual-add', icon: 'fa-plus-circle' },
     { name: 'Ngân hàng', path: '/bank', icon: 'fa-database' },
-    { name: 'Tạo bài thi', path: '/create-quiz', icon: 'fa-clipboard-check' },
+    { name: 'Bài thi', path: '/create-quiz', icon: 'fa-clipboard-check' },
+    { name: 'Học viên', path: '/students', icon: 'fa-users' },
+    { name: 'Nhật ký', path: '/history', icon: 'fa-history' },
   ] : [
     { name: 'Tổng quan', path: '/', icon: 'fa-chart-line' },
     { name: 'Học tập', path: '/learn', icon: 'fa-book-open' },

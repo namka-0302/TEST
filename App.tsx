@@ -9,8 +9,10 @@ import QuizCreator from './components/QuizCreator';
 import QuizTake from './components/QuizTake';
 import LearningMode from './components/LearningMode';
 import QuestionManualAdd from './components/QuestionManualAdd';
+import StudentManagement from './components/StudentManagement';
+import SystemHistory from './components/SystemHistory';
 import Login from './components/Login';
-import { Question, Quiz, User, Account } from './types';
+import { Question, Quiz, User, Account, QuizResult } from './types';
 import { SEED_QUESTIONS } from './data/seedData';
 
 const DEFAULT_ACCOUNTS: Account[] = [
@@ -23,12 +25,14 @@ const App: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [results, setResults] = useState<QuizResult[]>([]);
 
   useEffect(() => {
     const savedQuestions = localStorage.getItem('quizmaster_questions');
     const savedQuizzes = localStorage.getItem('quizmaster_quizzes');
     const savedUser = localStorage.getItem('quizmaster_user');
     const savedAccounts = localStorage.getItem('quizmaster_accounts');
+    const savedResults = localStorage.getItem('quizmaster_results');
     
     if (savedQuestions) {
       setQuestions(JSON.parse(savedQuestions));
@@ -39,6 +43,7 @@ const App: React.FC = () => {
 
     if (savedQuizzes) setQuizzes(JSON.parse(savedQuizzes));
     if (savedUser) setUser(JSON.parse(savedUser));
+    if (savedResults) setResults(JSON.parse(savedResults));
     
     if (savedAccounts) {
       setAccounts(JSON.parse(savedAccounts));
@@ -55,6 +60,10 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('quizmaster_quizzes', JSON.stringify(quizzes));
   }, [quizzes]);
+
+  useEffect(() => {
+    localStorage.setItem('quizmaster_results', JSON.stringify(results));
+  }, [results]);
 
   useEffect(() => {
     if (user) localStorage.setItem('quizmaster_user', JSON.stringify(user));
@@ -83,6 +92,10 @@ const App: React.FC = () => {
     setQuizzes(prev => [quiz, ...prev]);
   };
 
+  const saveResult = (result: QuizResult) => {
+    setResults(prev => [result, ...prev]);
+  };
+
   const logout = () => {
     setUser(null);
   };
@@ -96,14 +109,13 @@ const App: React.FC = () => {
   return (
     <HashRouter>
       <div className="min-h-screen flex flex-col bg-gray-50/50">
-        {/* Thêm khoảng trống phía trên cho iPhone Notch nếu cần */}
         <div className="h-[env(safe-area-inset-top)] bg-white sticky top-0 z-[110]"></div>
         
         <Navbar user={user} onLogout={logout} />
         
         <main className="flex-grow container mx-auto px-4 py-6 md:py-8">
           <Routes>
-            <Route path="/" element={<Dashboard user={user} questions={questions} quizzes={quizzes} />} />
+            <Route path="/" element={<Dashboard user={user} questions={questions} quizzes={quizzes} accounts={accounts} results={results} />} />
             
             {isAdmin && (
               <>
@@ -111,11 +123,16 @@ const App: React.FC = () => {
                 <Route path="/manual-add" element={<QuestionManualAdd onAddQuestion={(q) => addQuestions([q])} />} />
                 <Route path="/bank" element={<QuestionBank questions={questions} onDeleteQuestion={deleteQuestion} />} />
                 <Route path="/create-quiz" element={<QuizCreator questions={questions} onSaveQuiz={addQuiz} />} />
+                <Route path="/students" element={<StudentManagement accounts={accounts} results={results} questionsCount={questions.length} />} />
+                <Route path="/history" element={<SystemHistory results={results} />} />
               </>
             )}
 
             <Route path="/learn" element={<LearningMode questions={questions} onMarkSeen={(id) => updateQuestionSeen([id])} />} />
-            <Route path="/quiz/:id" element={<QuizTake quizzes={quizzes} onComplete={(ids) => updateQuestionSeen(ids)} />} />
+            <Route path="/quiz/:id" element={<QuizTake quizzes={quizzes} user={user} onComplete={(ids, result) => {
+              updateQuestionSeen(ids);
+              if (result) saveResult(result);
+            }} />} />
             
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -124,7 +141,7 @@ const App: React.FC = () => {
         <footer className="bg-white border-t py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-center text-gray-400 text-[10px] uppercase tracking-widest font-black">
           <div className="container mx-auto">
             <p className="mb-1 text-gray-500">QuizMaster AI System</p>
-            <p>© 2024 - Mobile Optimized v3.5</p>
+            <p>© 2024 - Mobile Optimized v3.7</p>
           </div>
         </footer>
       </div>

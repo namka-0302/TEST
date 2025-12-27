@@ -1,14 +1,15 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Quiz, QuizResult } from '../types';
+import { Quiz, QuizResult, User } from '../types';
 
 interface QuizTakeProps {
   quizzes: Quiz[];
-  onComplete: (questionIds: string[]) => void;
+  user: User;
+  onComplete: (questionIds: string[], result: QuizResult) => void;
 }
 
-const QuizTake: React.FC<QuizTakeProps> = ({ quizzes, onComplete }) => {
+const QuizTake: React.FC<QuizTakeProps> = ({ quizzes, user, onComplete }) => {
   const { id } = useParams<{ id: string }>();
   const quiz = quizzes.find(q => q.id === id);
 
@@ -51,17 +52,22 @@ const QuizTake: React.FC<QuizTakeProps> = ({ quizzes, onComplete }) => {
       }
     });
 
-    setResult({
+    const newResult: QuizResult = {
       score,
       totalQuestions: quiz.questions.length,
       timeSpent: quiz.durationMinutes * 60 - timeLeft,
       answers,
       quizId: quiz.id,
-      timestamp: Date.now()
-    });
+      timestamp: Date.now(),
+      userId: user.id,
+      userName: user.name,
+      quizTitle: quiz.title
+    };
+
+    setResult(newResult);
     setIsFinished(true);
-    onComplete(quiz.questions.map(q => q.id));
-  }, [quiz, answers, timeLeft, isFinished, onComplete]);
+    onComplete(quiz.questions.map(q => q.id), newResult);
+  }, [quiz, answers, timeLeft, isFinished, onComplete, user]);
 
   if (!quiz) return <div className="text-center py-20 font-bold text-gray-400">Không tìm thấy bài thi.</div>;
 

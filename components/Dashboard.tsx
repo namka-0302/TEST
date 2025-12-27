@@ -1,18 +1,61 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Question, Quiz, User } from '../types';
+import { Question, Quiz, User, Account, QuizResult } from '../types';
 
 interface DashboardProps {
   user: User;
   questions: Question[];
   quizzes: Quiz[];
+  accounts: Account[];
+  results: QuizResult[];
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, questions, quizzes }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, questions, quizzes, accounts, results }) => {
   const isAdmin = user.role === 'Admin';
   
   if (isAdmin) {
+    const studentCount = accounts.filter(a => a.role === 'User').length;
+    
+    const adminStats = [
+      { 
+        label: 'Ngân hàng', 
+        value: questions.length, 
+        icon: 'fa-database', 
+        color: 'text-blue-600', 
+        bg: 'bg-blue-50', 
+        path: '/bank',
+        desc: 'Quản lý câu hỏi'
+      },
+      { 
+        label: 'Bài thi', 
+        value: quizzes.length, 
+        icon: 'fa-clipboard-check', 
+        color: 'text-green-600', 
+        bg: 'bg-green-50', 
+        path: '/create-quiz',
+        desc: 'Thiết lập đề thi'
+      },
+      { 
+        label: 'Học viên', 
+        value: studentCount, 
+        icon: 'fa-users', 
+        color: 'text-purple-600', 
+        bg: 'bg-purple-50', 
+        path: '/students',
+        desc: 'Quản lý tiến độ'
+      },
+      { 
+        label: 'Nhật ký', 
+        value: results.length, 
+        icon: 'fa-history', 
+        color: 'text-orange-600', 
+        bg: 'bg-orange-50', 
+        path: '/history',
+        desc: 'Lịch sử hệ thống'
+      },
+    ];
+
     return (
       <div className="space-y-6 md:space-y-10 animate-fadeIn px-1 md:px-0 pb-10">
         {/* Admin Header */}
@@ -26,10 +69,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, questions, quizzes }) => {
               <p className="text-indigo-200 font-medium max-w-sm">Hệ thống của bạn đang có {questions.length} câu hỏi sẵn sàng.</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-              <Link to="/upload" className="w-full bg-white text-indigo-900 px-8 py-4 rounded-2xl font-black shadow-xl hover:bg-indigo-50 transition-all flex items-center justify-center gap-2">
+              <Link to="/upload" className="w-full bg-white text-indigo-900 px-8 py-4 rounded-2xl font-black shadow-xl hover:bg-indigo-50 transition-all flex items-center justify-center gap-2 active:scale-95">
                 <i className="fas fa-file-pdf"></i> Tải lên PDF
               </Link>
-              <Link to="/manual-add" className="w-full bg-indigo-500/40 text-white border border-indigo-400/30 px-8 py-4 rounded-2xl font-black hover:bg-indigo-500/60 transition-all flex items-center justify-center gap-2">
+              <Link to="/manual-add" className="w-full bg-indigo-500/40 text-white border border-indigo-400/30 px-8 py-4 rounded-2xl font-black hover:bg-indigo-500/60 transition-all flex items-center justify-center gap-2 active:scale-95">
                 <i className="fas fa-plus"></i> Thêm mới
               </Link>
             </div>
@@ -39,23 +82,23 @@ const Dashboard: React.FC<DashboardProps> = ({ user, questions, quizzes }) => {
           <div className="absolute top-10 left-10 w-20 h-20 bg-purple-500/10 rounded-full blur-xl"></div>
         </div>
 
-        {/* Admin Stats Grid */}
+        {/* Admin Stats Grid - Interactive */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-          {[
-            { label: 'Ngân hàng', value: questions.length, icon: 'fa-database', color: 'text-blue-600', bg: 'bg-blue-50' },
-            { label: 'Bài thi', value: quizzes.length, icon: 'fa-clipboard-check', color: 'text-green-600', bg: 'bg-green-50' },
-            { label: 'Học viên', value: '124', icon: 'fa-users', color: 'text-purple-600', bg: 'bg-purple-50' },
-            { label: 'Lượt thi', value: '450', icon: 'fa-history', color: 'text-orange-600', bg: 'bg-orange-50' },
-          ].map((stat, idx) => (
-            <div key={idx} className="bg-white p-5 md:p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row items-center md:items-center text-center md:text-left gap-3 md:gap-4 transition-transform hover:scale-[1.02]">
-              <div className={`${stat.bg} ${stat.color} w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center text-lg md:text-xl shrink-0`}>
+          {adminStats.map((stat, idx) => (
+            <Link 
+              to={stat.path} 
+              key={idx} 
+              className="bg-white p-5 md:p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col md:flex-row items-center md:items-center text-center md:text-left gap-3 md:gap-4 transition-all hover:scale-[1.03] hover:shadow-md hover:border-indigo-100 active:scale-95 group"
+            >
+              <div className={`${stat.bg} ${stat.color} w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center text-xl md:text-2xl shrink-0 group-hover:scale-110 transition-transform`}>
                 <i className={`fas ${stat.icon}`}></i>
               </div>
-              <div>
-                <p className="text-gray-400 text-[9px] md:text-[10px] font-black uppercase tracking-widest leading-none mb-1">{stat.label}</p>
+              <div className="overflow-hidden">
+                <p className="text-gray-400 text-[9px] md:text-[10px] font-black uppercase tracking-widest leading-none mb-1 group-hover:text-indigo-400 transition-colors">{stat.label}</p>
                 <h3 className="text-xl md:text-2xl font-black text-gray-900 leading-tight">{stat.value}</h3>
+                <p className="hidden md:block text-[8px] text-gray-300 font-bold uppercase mt-1 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{stat.desc}</p>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
 
@@ -123,7 +166,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, questions, quizzes }) => {
             Bạn đã khám phá được {questions.filter(q => q.seenCount > 0).length} trên tổng số {questions.length} câu hỏi.
           </p>
           <div className="flex flex-wrap justify-center md:justify-start gap-4 pt-2">
-            <Link to="/learn" className="w-full sm:w-auto bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black shadow-xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-2">
+            <Link to="/learn" className="w-full sm:w-auto bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black shadow-xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 active:scale-95">
               <i className="fas fa-rocket"></i> Học ngay
             </Link>
           </div>
@@ -145,7 +188,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, questions, quizzes }) => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {quizzes.map(quiz => (
-                <Link key={quiz.id} to={`/quiz/${quiz.id}`} className="bg-white p-6 rounded-[2rem] border border-gray-50 hover:border-indigo-600 hover:shadow-2xl transition-all group relative overflow-hidden">
+                <Link key={quiz.id} to={`/quiz/${quiz.id}`} className="bg-white p-6 rounded-[2rem] border border-gray-50 hover:border-indigo-600 hover:shadow-2xl transition-all group relative overflow-hidden active:scale-[0.98]">
                   <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-indigo-50 rounded-full scale-0 group-hover:scale-100 transition-transform duration-500 opacity-50"></div>
                   <div className="flex justify-between items-start mb-6">
                     <div className="w-12 h-12 bg-gray-50 text-gray-400 rounded-2xl flex items-center justify-center text-xl group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm">
