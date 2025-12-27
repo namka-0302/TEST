@@ -12,21 +12,18 @@ class DatabaseService {
 
   async checkConnection() {
     try {
-      // Kiểm tra xem API Serverless có phản hồi không
       const res = await fetch(`${this.apiPath}/health`);
       if (res.ok) {
         const data = await res.json();
-        // Nếu API trả về provider là Vercel, nghĩa là KV đã được kết nối
         if (data.provider === 'Vercel') {
           this.connectionType = 'Vercel';
           this.isCloud = true;
-          console.log("🌐 QuizMaster Cloud: Upstash Redis Connected");
+          console.log("🌐 QuizMaster Cloud Connected");
         }
       }
     } catch (e) {
       this.connectionType = 'Local';
       this.isCloud = false;
-      console.warn("🏠 QuizMaster Local: Running without Database (Offline)");
     }
   }
 
@@ -36,11 +33,7 @@ class DatabaseService {
         ...options,
         headers: { 'Content-Type': 'application/json', ...options.headers },
       });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error(`API Error (${path}):`, errorData);
-        return null;
-      }
+      if (!response.ok) return null;
       return await response.json();
     } catch (e) {
       return null;
@@ -55,13 +48,27 @@ class DatabaseService {
   }
 
   async saveQuestions(questions: Question[]): Promise<void> {
-    const success = await this.request('/questions', {
+    await this.request('/questions', {
       method: 'POST',
       body: JSON.stringify({ questions }),
     });
-    // Lưu backup local
     localStorage.setItem('quizmaster_questions', JSON.stringify(questions));
-    window.dispatchEvent(new StorageEvent('storage', { key: 'quizmaster_questions' }));
+  }
+
+  // TIẾN ĐỘ CÁ NHÂN (User Progress)
+  async getUserProgress(userId: string): Promise<Record<string, number>> {
+    const data = await this.request(`/progress?userId=${userId}`);
+    if (data) return data;
+    const saved = localStorage.getItem(`quizmaster_progress_${userId}`);
+    return saved ? JSON.parse(saved) : {};
+  }
+
+  async saveUserProgress(userId: string, progress: Record<string, number>): Promise<void> {
+    await this.request('/progress', {
+      method: 'POST',
+      body: JSON.stringify({ userId, progress }),
+    });
+    localStorage.setItem(`quizmaster_progress_${userId}`, JSON.stringify(progress));
   }
 
   async getQuizzes(): Promise<Quiz[]> {
@@ -77,7 +84,6 @@ class DatabaseService {
       body: JSON.stringify({ quizzes }),
     });
     localStorage.setItem('quizmaster_quizzes', JSON.stringify(quizzes));
-    window.dispatchEvent(new StorageEvent('storage', { key: 'quizmaster_quizzes' }));
   }
 
   async deleteQuiz(id: string): Promise<void> {
@@ -100,7 +106,6 @@ class DatabaseService {
     });
     const results = await this.getResults();
     localStorage.setItem('quizmaster_results', JSON.stringify([result, ...results]));
-    window.dispatchEvent(new StorageEvent('storage', { key: 'quizmaster_results' }));
   }
 
   async getAccounts(): Promise<Account[]> {
@@ -118,14 +123,6 @@ class DatabaseService {
       body: JSON.stringify({ accounts: updated }),
     });
     localStorage.setItem('quizmaster_accounts', JSON.stringify(updated));
-    window.dispatchEvent(new StorageEvent('storage', { key: 'quizmaster_accounts' }));
-  }
-
-  subscribe(table: string, callback: () => void) {
-    if (this.connectionType === 'Local') return null;
-    // Cơ chế Long Polling: Tự động cập nhật sau mỗi 10 giây để đảm bảo máy học sinh thấy câu hỏi mới
-    const interval = setInterval(callback, 10000);
-    return { unsubscribe: () => clearInterval(interval) };
   }
 }
 

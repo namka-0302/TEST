@@ -4,43 +4,52 @@ import { Question } from '../types';
 
 interface LearningModeProps {
   questions: Question[];
+  userProgress?: Record<string, number>;
   onMarkSeen: (id: string) => void;
 }
 
-const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) => {
+const LearningMode: React.FC<LearningModeProps> = ({ questions, userProgress = {}, onMarkSeen }) => {
   const [sessionQueue, setSessionQueue] = useState<string[]>([]);
   const [currentQueueIdx, setCurrentQueueIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null);
+  const [showSyncToast, setShowSyncToast] = useState(false);
   
-  // Ref để theo dõi số lượng câu hỏi cũ, giúp trigger cập nhật queue khi cloud sync xong
-  const lastQuestionsCount = useRef(0);
+  const queueIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    // Nếu có sự thay đổi đáng kể về số lượng câu hỏi (ví dụ: từ 0 lên X sau khi sync cloud)
-    // Hoặc nếu queue đang trống mà questions đã có dữ liệu
-    if (questions.length > 0 && (sessionQueue.length === 0 || questions.length !== lastQuestionsCount.current)) {
-      const unseen = questions.filter(q => q.seenCount === 0).map(q => q.id);
-      const seen = questions.filter(q => q.seenCount > 0).sort((a, b) => a.seenCount - b.seenCount).map(q => q.id);
-      
-      const shuffleArray = (array: string[]) => {
-        const arr = [...array];
-        for (let i = arr.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [arr[i], arr[j]] = [arr[j], arr[i]];
-        }
-        return arr;
-      };
+    if (questions.length === 0) return;
 
-      // Chỉ khởi tạo lại toàn bộ nếu queue đang trống (lần đầu sync)
-      // Nếu đang học mà có câu hỏi mới, chúng ta có thể nối thêm vào cuối (tùy logic, ở đây ưu tiên khởi tạo session sạch)
+    const newQuestionIds = questions
+      .map(q => q.id)
+      .filter(id => !queueIdsRef.current.has(id));
+
+    if (newQuestionIds.length > 0) {
       if (sessionQueue.length === 0) {
+        // PHÂN LOẠI THEO TIẾN ĐỘ CÁ NHÂN
+        const unseen = questions.filter(q => !userProgress[q.id]).map(q => q.id);
+        const seen = questions.filter(q => userProgress[q.id] > 0).sort((a, b) => userProgress[a.id] - userProgress[b.id]).map(q => q.id);
+        
+        const shuffleArray = (array: string[]) => {
+          const arr = [...array];
+          for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+          }
+          return arr;
+        };
+
         const initialQueue = [...shuffleArray(unseen), ...shuffleArray(seen)];
         setSessionQueue(initialQueue);
-        lastQuestionsCount.current = questions.length;
+        initialQueue.forEach(id => queueIdsRef.current.add(id));
+      } else {
+        setSessionQueue(prev => [...prev, ...newQuestionIds]);
+        newQuestionIds.forEach(id => queueIdsRef.current.add(id));
+        setShowSyncToast(true);
+        setTimeout(() => setShowSyncToast(false), 3000);
       }
     }
-  }, [questions, sessionQueue.length]);
+  }, [questions]);
 
   const currentQId = sessionQueue[currentQueueIdx];
   const currentQ = useMemo(() => questions.find(q => q.id === currentQId), [questions, currentQId]);
@@ -79,7 +88,8 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
   };
 
   const handleReset = () => {
-    if(confirm("Làm mới phiên học tập hiện tại?")) {
+    if(confirm("Làm mới phiên học tập hiện tại? Toàn bộ thứ tự câu hỏi sẽ được trộn lại.")) {
+      queueIdsRef.current.clear();
       setSessionQueue([]);
       setCurrentQueueIdx(0);
       setRevealed(false);
@@ -94,7 +104,7 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
           <i className="fas fa-sync-alt fa-spin"></i>
         </div>
         <h2 className="text-2xl font-black text-gray-900">Đang tải học liệu...</h2>
-        <p className="text-gray-400 mt-2 font-medium">Hệ thống đang đồng bộ dữ liệu từ Cloud. Vui lòng đợi trong giây lát.</p>
+        <p className="text-gray-400 mt-2 font-medium">Hệ thống đang đồng bộ dữ liệu từ Cloud.</p>
       </div>
     );
   }
@@ -102,13 +112,13 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
   if (sessionQueue.length > 0 && currentQueueIdx >= sessionQueue.length) {
     return (
       <div className="max-w-2xl mx-auto py-20 text-center bg-white rounded-[3rem] border border-gray-100 shadow-xl mt-10 px-6 animate-fadeIn">
-        <div className="w-24 h-24 bg-green-100 text-green-600 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 text-4xl shadow-lg shadow-green-100 rotate-6">
+        <div className="w-24 h-24 bg-green-100 text-green-600 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 text-4xl shadow-lg shadow-green-100">
           <i className="fas fa-check-double"></i>
         </div>
-        <h2 className="text-3xl font-black text-gray-900">Hoàn thành xuất sắc!</h2>
-        <p className="text-gray-500 mt-3 font-medium text-lg">Bạn đã ôn tập xong các câu hỏi trong phiên này.</p>
+        <h2 className="text-3xl font-black text-gray-900">Hoàn thành bài học!</h2>
+        <p className="text-gray-500 mt-3 font-medium text-lg">Bạn đã ôn tập xong các câu hỏi hiện có.</p>
         <button 
-          onClick={() => { setSessionQueue([]); setCurrentQueueIdx(0); }}
+          onClick={() => { queueIdsRef.current.clear(); setSessionQueue([]); setCurrentQueueIdx(0); }}
           className="mt-10 px-12 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl hover:bg-indigo-700 transition-all active:scale-95"
         >
           TIẾP TỤC ÔN TẬP
@@ -117,19 +127,19 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
     );
   }
 
-  if (!currentQ) return (
-    <div className="flex justify-center items-center py-20">
-       <i className="fas fa-circle-notch fa-spin text-indigo-600 text-4xl"></i>
-    </div>
-  );
-
-  const totalMastered = questions.filter(q => q.seenCount > 0).length;
+  const totalMastered = questions.filter(q => userProgress[q.id] > 0).length;
   const globalProgress = Math.round((totalMastered / questions.length) * 100);
   const sessionProgress = (currentQueueIdx / sessionQueue.length) * 100;
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col min-h-[calc(100vh-6rem)] animate-fadeIn gap-6 px-2 pb-10">
-      {/* Header Info */}
+    <div className="max-w-4xl mx-auto flex flex-col min-h-[calc(100vh-6rem)] animate-fadeIn gap-6 px-2 pb-10 relative">
+      {showSyncToast && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[200] bg-gray-900 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-slideDown">
+          <i className="fas fa-cloud-download-alt text-green-400"></i>
+          <span className="text-xs font-black uppercase tracking-wider">Đã cập nhật dữ liệu mới</span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between bg-white/50 backdrop-blur-md p-4 rounded-[2rem] border border-white shadow-sm">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg rotate-3">
@@ -137,7 +147,7 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
           </div>
           <div>
             <h1 className="text-base font-black text-gray-900 uppercase tracking-tighter">Chế độ học tập</h1>
-            <p className="text-[10px] font-bold text-gray-400">Tối ưu hóa ghi nhớ dài hạn</p>
+            <p className="text-[10px] font-bold text-gray-400">Tiến độ cá nhân</p>
           </div>
         </div>
         <button 
@@ -148,9 +158,7 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
         </button>
       </div>
 
-      {/* Main Question Card */}
       <div className="flex-grow flex flex-col bg-white rounded-[3.5rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.08)] border border-gray-50 overflow-hidden">
-        {/* Top Progress Bar */}
         <div className="h-2 w-full bg-gray-50">
           <div 
             className="bg-indigo-600 h-full transition-all duration-700 ease-in-out"
@@ -159,18 +167,17 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
         </div>
 
         <div className="flex-grow flex flex-col p-8 md:p-14 lg:p-20">
-          {/* Question Metadata */}
           <div className="flex justify-between items-center mb-10">
              <div className="flex gap-2">
                 <span className={`text-[10px] px-4 py-1.5 rounded-full font-black uppercase tracking-widest ${
-                  currentQ.difficulty === 'Easy' ? 'bg-green-50 text-green-600' :
-                  currentQ.difficulty === 'Hard' ? 'bg-red-50 text-red-600' : 'bg-yellow-50 text-yellow-600'
+                  currentQ?.difficulty === 'Easy' ? 'bg-green-50 text-green-600' :
+                  currentQ?.difficulty === 'Hard' ? 'bg-red-50 text-red-600' : 'bg-yellow-50 text-yellow-600'
                 }`}>
-                  {currentQ.difficulty}
+                  {currentQ?.difficulty}
                 </span>
-                {currentQ.seenCount > 0 && (
+                {currentQ && userProgress[currentQ.id] > 0 && (
                   <span className="text-[10px] px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-full font-black uppercase tracking-widest flex items-center gap-2 border border-indigo-100">
-                    <i className="fas fa-check-circle"></i> ĐÃ THUỘC
+                    <i className="fas fa-check-circle"></i> BẠN ĐÃ THUỘC ({userProgress[currentQ.id]})
                   </span>
                 )}
              </div>
@@ -179,14 +186,12 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
              </span>
           </div>
 
-          {/* Question Text - Responsive font size */}
           <h3 className="text-2xl md:text-4xl font-black text-gray-800 leading-[1.25] mb-12">
-            {currentQ.text}
+            {currentQ?.text}
           </h3>
 
-          {/* Choices Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {currentQ.choices.map(choice => {
+            {currentQ?.choices.map(choice => {
               const isCorrect = choice.isCorrect;
               const isSelected = selectedChoiceId === choice.id;
               
@@ -210,15 +215,12 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
                     {choice.label}
                   </div>
                   <span className="font-bold text-lg md:text-xl text-gray-700 flex-grow leading-tight">{choice.text}</span>
-                  {revealed && isCorrect && <i className="fas fa-check-circle text-green-600 text-3xl animate-bounce"></i>}
-                  {revealed && isSelected && !isCorrect && <i className="fas fa-times-circle text-red-600 text-3xl"></i>}
                 </button>
               );
             })}
           </div>
 
-          {/* Explanation Area */}
-          {revealed && (
+          {revealed && currentQ && (
             <div className="animate-slideUp mt-10">
               <div className={`p-8 rounded-[3rem] border-2 relative overflow-hidden ${
                 isAnswerCorrect ? 'bg-green-50 border-green-100/50' : 'bg-indigo-50 border-indigo-100/50'
@@ -231,18 +233,11 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
                 <p className="text-base md:text-lg text-indigo-950 leading-relaxed font-bold italic">
                   {currentQ.explanation || 'Đáp án đúng là ' + currentQ.choices.find(c => c.isCorrect)?.label + ': ' + currentQ.choices.find(c => c.isCorrect)?.text}
                 </p>
-                {!isAnswerCorrect && (
-                   <div className="mt-6 flex items-center gap-3 text-red-600/70">
-                      <i className="fas fa-redo-alt animate-spin-slow text-sm"></i>
-                      <span className="font-black text-[10px] uppercase tracking-wider">Hệ thống sẽ lặp lại câu này để bạn ghi nhớ</span>
-                   </div>
-                )}
               </div>
             </div>
           )}
         </div>
 
-        {/* Footer Button - Always sticky at bottom of card when revealed */}
         {revealed && (
           <div className="p-8 bg-gray-50/50 backdrop-blur-sm border-t border-gray-100 mt-auto">
             <button 
@@ -256,7 +251,6 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
         )}
       </div>
 
-      {/* Global Progress Indicator */}
       <div className="bg-indigo-950 text-white px-10 py-6 rounded-[3rem] shadow-2xl flex items-center justify-between shrink-0 border border-indigo-900">
         <div className="flex items-center gap-6">
           <div className="relative w-14 h-14">

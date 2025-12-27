@@ -9,11 +9,12 @@ interface DashboardProps {
   quizzes: Quiz[];
   accounts: Account[];
   results: QuizResult[];
+  userProgress?: Record<string, number>;
   onDeleteQuiz?: (id: string) => void;
   onManualSync?: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, questions, quizzes, accounts, results, onDeleteQuiz, onManualSync }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, questions, quizzes, accounts, results, userProgress = {}, onDeleteQuiz, onManualSync }) => {
   const isAdmin = user.role === 'Admin';
   const navigate = useNavigate();
   
@@ -34,7 +35,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, questions, quizzes, account
     if (isAdmin) return null;
     
     const userResults = results.filter(r => r.userId === user.id).sort((a, b) => a.timestamp - b.timestamp);
-    const totalSeen = questions.filter(q => q.seenCount > 0).length;
+    
+    // TIẾN ĐỘ CÁ NHÂN: Chỉ tính những câu mà User hiện tại đã học
+    const totalSeen = questions.filter(q => userProgress[q.id] > 0).length;
     const masteryRate = questions.length > 0 ? Math.round((totalSeen / questions.length) * 100) : 0;
     
     const avgScore = userResults.length > 0 
@@ -47,7 +50,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, questions, quizzes, account
     }));
 
     return { userResults, totalSeen, masteryRate, avgScore, recentScores };
-  }, [isAdmin, results, user.id, questions]);
+  }, [isAdmin, results, user.id, questions, userProgress]);
 
   if (isAdmin) {
     const studentCount = accounts.filter(a => a.role === 'User').length;
@@ -210,74 +213,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, questions, quizzes, account
               ))
             )}
           </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-black text-gray-900">Bài thi từ Giáo viên</h2>
-            <Link to="/quizzes" className="text-indigo-600 text-xs font-black uppercase tracking-widest">Tất cả</Link>
-          </div>
-          {quizzes.length === 0 ? (
-            <div className="bg-white p-12 rounded-[2.5rem] text-center border border-dashed border-gray-200 text-gray-400 font-medium italic">Chưa có bài thi nào được giao trên hệ thống.</div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {quizzes.slice(0, 4).map(quiz => (
-                <Link key={quiz.id} to={`/quiz/${quiz.id}`} className="bg-white p-6 rounded-[2.5rem] border border-gray-50 hover:border-indigo-600 hover:shadow-xl transition-all group flex flex-col justify-between min-h-[160px]">
-                  <div>
-                    <h3 className="text-lg font-black text-gray-900 line-clamp-1 group-hover:text-indigo-600 transition-colors">{quiz.title}</h3>
-                    <div className="flex gap-2 mt-2">
-                      <span className="text-[9px] font-black text-gray-400 uppercase bg-gray-50 px-2 py-1 rounded-md">{quiz.questions.length} CÂU</span>
-                      <span className="text-[9px] font-black text-gray-400 uppercase bg-gray-50 px-2 py-1 rounded-md">{quiz.durationMinutes} PHÚT</span>
-                    </div>
-                  </div>
-                  <div className="mt-6 flex items-center justify-between">
-                    <span className="text-indigo-600 font-black text-[10px] uppercase tracking-widest flex items-center gap-2">
-                      Làm bài ngay <i className="fas fa-arrow-right text-[8px] group-hover:translate-x-1 transition-transform"></i>
-                    </span>
-                    <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                      <i className="fas fa-play text-[10px]"></i>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-6">
-           <h2 className="text-xl font-black text-gray-900">Lịch sử cá nhân</h2>
-           <div className="bg-white rounded-[2.5rem] border border-gray-50 shadow-sm overflow-hidden">
-             {userResults.length === 0 ? (
-               <div className="p-10 text-center text-gray-400 text-sm font-medium italic">Bạn chưa thực hiện bài thi nào.</div>
-             ) : (
-               <div className="divide-y divide-gray-50">
-                 {userResults.slice().reverse().slice(0, 5).map((res, idx) => {
-                   const scorePercent = Math.round(res.score/res.totalQuestions*100);
-                   return (
-                     <div key={idx} className="p-5 hover:bg-gray-50 transition-colors group">
-                       <div className="flex justify-between items-start mb-2">
-                         <h4 className="font-bold text-gray-800 text-sm line-clamp-1">{res.quizTitle || 'Bài kiểm tra'}</h4>
-                         <span className={`text-[10px] font-black px-2 py-0.5 rounded ${scorePercent >= 80 ? 'bg-green-50 text-green-600' : 'bg-indigo-50 text-indigo-600'}`}>
-                           {scorePercent}%
-                         </span>
-                       </div>
-                       <div className="flex justify-between items-center">
-                         <p className="text-[9px] text-gray-400 font-black uppercase">{new Date(res.timestamp).toLocaleDateString()} • {formatTime(res.timeSpent)}</p>
-                         <Link 
-                            to={`/quiz-review/${res.quizId}?timestamp=${res.timestamp}`} 
-                            className="text-[9px] font-black text-indigo-600 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity"
-                         >
-                           Chi tiết <i className="fas fa-chevron-right text-[7px]"></i>
-                         </Link>
-                       </div>
-                     </div>
-                   );
-                 })}
-               </div>
-             )}
-           </div>
         </div>
       </div>
     </div>

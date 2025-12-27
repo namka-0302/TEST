@@ -28,6 +28,7 @@ const App: React.FC = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [results, setResults] = useState<QuizResult[]>([]);
+  const [userProgress, setUserProgress] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   
@@ -36,7 +37,6 @@ const App: React.FC = () => {
 
   const syncData = useCallback(async (isInitial = false) => {
     if (isUpdatingRef.current) return;
-    // Tăng thời gian giãn cách sync để mượt mà hơn
     if (!isInitial && Date.now() - lastSyncRef.current < 5000) return;
     
     setIsSyncing(true);
@@ -52,9 +52,6 @@ const App: React.FC = () => {
         db.getAccounts()
       ]);
 
-      // Logic đồng bộ thông minh:
-      // Nếu là Cloud, ưu tiên tuyệt đối dữ liệu từ Cloud (kể cả rỗng)
-      // Nếu là Local, dùng Local hoặc Seed nếu trống
       if (qData !== null) {
         if (db.isCloud) {
           setQuestions(qData);
@@ -68,25 +65,29 @@ const App: React.FC = () => {
       if (accData !== null) setAccounts(accData.length > 0 ? accData : DEFAULT_ACCOUNTS);
 
       const savedUser = localStorage.getItem('quizmaster_user');
-      if (savedUser && !user) setUser(JSON.parse(savedUser));
+      if (savedUser && !user) {
+        const parsedUser = JSON.parse(savedUser);
+        setUser(parsedUser);
+        // Tải tiến độ ngay khi nhận diện được user
+        const progress = await db.getUserProgress(parsedUser.id);
+        setUserProgress(progress);
+      } else if (user) {
+        const progress = await db.getUserProgress(user.id);
+        setUserProgress(progress);
+      }
       
       setLoading(false);
     } catch (err) {
       console.error("Lỗi đồng bộ dữ liệu:", err);
       setLoading(false);
     } finally {
-      // Giữ trạng thái syncing thêm một chút để UI ổn định
-      setTimeout(() => setIsSyncing(false), 1500);
+      setTimeout(() => setIsSyncing(false), 1000);
     }
   }, [user]);
 
   useEffect(() => {
     syncData(true);
-
-    const syncInterval = setInterval(() => {
-      syncData();
-    }, 15000); // 15s cho cloud sync ngầm
-
+    const syncInterval = setInterval(() => syncData(), 15000);
     return () => clearInterval(syncInterval);
   }, [syncData]);
 
@@ -94,13 +95,12 @@ const App: React.FC = () => {
     isUpdatingRef.current = true;
     try {
       await updateFn();
-      // Sync ngay lập tức sau khi update
       lastSyncRef.current = 0;
       await syncData();
     } finally {
       setTimeout(() => {
         isUpdatingRef.current = false;
-      }, 2000);
+      }, 1000);
     }
   };
 
@@ -121,13 +121,14 @@ const App: React.FC = () => {
   };
 
   const updateQuestionSeen = async (ids: string[]) => {
-    if (ids.length === 0) return;
+    if (ids.length === 0 || !user) return;
     await safeUpdate(async () => {
-      const updated = questions.map(q => 
-        ids.includes(q.id) ? { ...q, seenCount: q.seenCount + 1 } : q
-      );
-      setQuestions(updated);
-      await db.saveQuestions(updated);
+      const newProgress = { ...userProgress };
+      ids.forEach(id => {
+        newProgress[id] = (newProgress[id] || 0) + 1;
+      });
+      setUserProgress(newProgress);
+      await db.saveUserProgress(user.id, newProgress);
     });
   };
 
@@ -170,13 +171,17 @@ const App: React.FC = () => {
     });
   };
 
-  const handleLogin = (u: User | null) => {
-    setUser(u);
+  const handleLogin = async (u: User | null) => {
     if (u) {
       localStorage.setItem('quizmaster_user', JSON.stringify(u));
+      const progress = await db.getUserProgress(u.id);
+      setUserProgress(progress);
+      setUser(u);
       syncData(true);
     } else {
       localStorage.removeItem('quizmaster_user');
+      setUser(null);
+      setUserProgress({});
     }
   };
 
@@ -190,7 +195,7 @@ const App: React.FC = () => {
           <div className="absolute -top-2 -right-2 w-8 h-8 bg-green-500 rounded-full border-4 border-[#0a0a1a] animate-pulse"></div>
         </div>
         <h2 className="text-3xl font-black tracking-tighter mb-2">QuizMaster AI</h2>
-        <p className="text-indigo-400 font-bold uppercase tracking-[0.3em] text-[10px]">Cloud Syncing Data</p>
+        <p className="text-indigo-400 font-bold uppercase tracking-[0.3em] text-[10px]">Verifying Identity</p>
       </div>
     );
   }
@@ -214,7 +219,7 @@ const App: React.FC = () => {
         
         <main className="flex-grow container mx-auto px-4 py-8">
           <Routes>
-            <Route path="/" element={<Dashboard user={user} questions={questions} quizzes={quizzes} accounts={accounts} results={results} onDeleteQuiz={deleteQuiz} onManualSync={() => syncData(true)} />} />
+            <Route path="/" element={<Dashboard user={user} questions={questions} quizzes={quizzes} accounts={accounts} results={results} userProgress={userProgress} onDeleteQuiz={deleteQuiz} onManualSync={() => syncData(true)} />} />
             
             {isAdmin && (
               <>
@@ -230,14 +235,9 @@ const App: React.FC = () => {
               </>
             )}
 
-            <Route path="/learn" element={<LearningMode questions={questions} onMarkSeen={(id) => updateQuestionSeen([id])} />} />
+            <Route path="/learn" element={<LearningMode questions={questions} userProgress={userProgress} onMarkSeen={(id) => updateQuestionSeen([id])} />} />
             <Route path="/quiz/:id" element={<QuizTake quizzes={quizzes} user={user} onComplete={(ids, result) => {
-              const correctQuestionIds = result ? Object.keys(result.answers).filter(qId => {
-                const q = questions.find(item => item.id === qId);
-                const correctChoice = q?.choices.find(c => c.isCorrect);
-                return result.answers[qId] === correctChoice?.id;
-              }) : [];
-              updateQuestionSeen(correctQuestionIds);
+              updateQuestionSeen(ids);
               if (result) saveResult(result);
             }} />} />
             
