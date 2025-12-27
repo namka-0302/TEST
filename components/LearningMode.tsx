@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Question } from '../types';
 
 interface LearningModeProps {
@@ -8,8 +8,11 @@ interface LearningModeProps {
 }
 
 const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) => {
-  // Ưu tiên các câu hỏi ít được xem nhất lên đầu
-  const sortedQuestions = [...questions].sort((a, b) => a.seenCount - b.seenCount);
+  // Sử dụng useMemo để tránh việc sắp xếp lại danh sách liên tục gây giật lag,
+  // nhưng vẫn đảm bảo danh sách cập nhật khi questions thay đổi
+  const sortedQuestions = useMemo(() => {
+    return [...questions].sort((a, b) => a.seenCount - b.seenCount);
+  }, [questions]);
   
   const [currentIdx, setCurrentIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
@@ -21,6 +24,9 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
     const savedIdx = localStorage.getItem('quizmaster_learn_last_idx');
     if (savedIdx && parseInt(savedIdx) < sortedQuestions.length) {
       setCurrentIdx(parseInt(savedIdx));
+    } else if (sortedQuestions.length > 0) {
+      // Nếu số lượng câu hỏi thay đổi lớn, đưa về 0 để an toàn
+      setCurrentIdx(0);
     }
     setIsLoaded(true);
   }, [sortedQuestions.length]);
@@ -67,6 +73,12 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
         <p className="text-gray-400 mt-2 text-sm">Hãy thêm câu hỏi vào ngân hàng để bắt đầu.</p>
       </div>
     );
+  }
+
+  // Đảm bảo currentQ tồn tại (trường hợp Admin vừa xóa câu hỏi)
+  if (!currentQ && sortedQuestions.length > 0) {
+    setCurrentIdx(0);
+    return null;
   }
 
   const totalSeen = questions.filter(q => q.seenCount > 0).length;

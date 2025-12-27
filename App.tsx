@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Dashboard from './components/Dashboard';
@@ -27,7 +27,8 @@ const App: React.FC = () => {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [results, setResults] = useState<QuizResult[]>([]);
 
-  useEffect(() => {
+  // Hàm load dữ liệu từ localStorage
+  const loadInitialData = useCallback(() => {
     const savedQuestions = localStorage.getItem('quizmaster_questions');
     const savedQuizzes = localStorage.getItem('quizmaster_quizzes');
     const savedUser = localStorage.getItem('quizmaster_user');
@@ -53,12 +54,29 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Khởi tạo dữ liệu lần đầu
   useEffect(() => {
-    localStorage.setItem('quizmaster_questions', JSON.stringify(questions));
+    loadInitialData();
+
+    // Quan trọng: Lắng nghe sự kiện 'storage' để đồng bộ giữa các tab
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key && e.key.startsWith('quizmaster_')) {
+        console.log('Phát hiện thay đổi dữ liệu từ tab khác, đang đồng bộ...');
+        loadInitialData();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [loadInitialData]);
+
+  // Lưu dữ liệu mỗi khi state thay đổi (trong tab hiện tại)
+  useEffect(() => {
+    if (questions.length > 0) localStorage.setItem('quizmaster_questions', JSON.stringify(questions));
   }, [questions]);
 
   useEffect(() => {
-    localStorage.setItem('quizmaster_quizzes', JSON.stringify(quizzes));
+    if (quizzes.length > 0) localStorage.setItem('quizmaster_quizzes', JSON.stringify(quizzes));
   }, [quizzes]);
 
   useEffect(() => {
@@ -79,9 +97,13 @@ const App: React.FC = () => {
   };
 
   const updateQuestionSeen = (questionIds: string[]) => {
-    setQuestions(prev => prev.map(q => 
-      questionIds.includes(q.id) ? { ...q, seenCount: q.seenCount + 1 } : q
-    ));
+    setQuestions(prev => {
+      const updated = prev.map(q => 
+        questionIds.includes(q.id) ? { ...q, seenCount: q.seenCount + 1 } : q
+      );
+      localStorage.setItem('quizmaster_questions', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const deleteQuestion = (id: string) => {
@@ -141,7 +163,7 @@ const App: React.FC = () => {
         <footer className="bg-white border-t py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-center text-gray-400 text-[10px] uppercase tracking-widest font-black">
           <div className="container mx-auto">
             <p className="mb-1 text-gray-500">QuizMaster AI System</p>
-            <p>© 2024 - Mobile Optimized v3.7</p>
+            <p>© 2024 - Real-time Sync v4.0</p>
           </div>
         </footer>
       </div>
