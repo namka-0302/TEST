@@ -16,7 +16,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
   const navItems = isAdmin ? [
     { name: 'Tổng quan', path: '/', icon: 'fa-chart-line' },
     { name: 'Ngân hàng', path: '/bank', icon: 'fa-database' },
-    { name: 'Bài thi', path: '/create-quiz', icon: 'fa-clipboard-check' },
+    { name: 'Bài thi', path: '/quizzes', icon: 'fa-clipboard-check' },
     { name: 'Học viên', path: '/students', icon: 'fa-users' },
     { name: 'Nhật ký', path: '/history', icon: 'fa-history' },
   ] : [
@@ -43,7 +43,8 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
               key={item.path}
               to={item.path}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                location.pathname === item.path ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50'
+                location.pathname === item.path || (item.path === '/quizzes' && location.pathname.includes('/edit-quiz')) || (item.path === '/bank' && location.pathname.includes('/edit-question'))
+                ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50'
               }`}
             >
               <i className={`fas ${item.icon}`}></i>

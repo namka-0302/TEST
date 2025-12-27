@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Question } from '../types';
 
 interface QuestionBankProps {
@@ -13,6 +14,7 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ questions, onDeleteQuestion
   const [search, setSearch] = useState('');
   const [filterDifficulty, setFilterDifficulty] = useState<'All' | 'Easy' | 'Medium' | 'Hard'>('All');
   const [currentPage, setCurrentPage] = useState(1);
+  const navigate = useNavigate();
 
   const filtered = questions.filter(q => {
     const matchesSearch = q.text.toLowerCase().includes(search.toLowerCase());
@@ -26,9 +28,17 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ questions, onDeleteQuestion
   return (
     <div className="space-y-6 animate-fadeIn pb-20 px-1 md:px-0">
       <div className="flex flex-col gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-black text-gray-900">Ngân hàng câu hỏi</h1>
-          <p className="text-gray-500 text-sm font-medium">Đang quản lý {questions.length} tài nguyên giáo dục.</p>
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-black text-gray-900">Ngân hàng câu hỏi</h1>
+            <p className="text-gray-500 text-sm font-medium">Đang quản lý {questions.length} tài nguyên giáo dục.</p>
+          </div>
+          <button 
+            onClick={() => navigate('/manual-add')}
+            className="hidden sm:flex bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-black text-xs items-center gap-2 shadow-lg shadow-indigo-100"
+          >
+            <i className="fas fa-plus"></i> Thêm thủ công
+          </button>
         </div>
         
         <div className="flex flex-col sm:flex-row gap-2 w-full">
@@ -73,9 +83,9 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ questions, onDeleteQuestion
               </tr>
             ) : (
               currentItems.map((q) => (
-                <tr key={q.id} className="hover:bg-gray-50/50 transition-colors">
+                <tr key={q.id} className="hover:bg-gray-50/50 transition-colors group">
                   <td className="px-6 py-4 max-w-md">
-                    <p className="text-sm font-bold text-gray-800 line-clamp-1">{q.text}</p>
+                    <p className="text-sm font-bold text-gray-800 line-clamp-1 group-hover:line-clamp-none transition-all">{q.text}</p>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-1">
@@ -94,10 +104,16 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ questions, onDeleteQuestion
                       {q.difficulty}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-6 py-4 text-right flex justify-end gap-2">
                     <button 
-                      onClick={() => onDeleteQuestion(q.id)}
-                      className="w-10 h-10 rounded-xl bg-white border border-gray-100 text-gray-300 hover:text-red-600 hover:border-red-100 hover:bg-red-50 transition-all"
+                      onClick={() => navigate(`/edit-question/${q.id}`)}
+                      className="w-10 h-10 rounded-xl bg-white border border-gray-100 text-indigo-400 hover:text-indigo-600 hover:border-indigo-100 transition-all"
+                    >
+                      <i className="fas fa-edit"></i>
+                    </button>
+                    <button 
+                      onClick={() => { if(window.confirm('Xóa câu hỏi này?')) onDeleteQuestion(q.id); }}
+                      className="w-10 h-10 rounded-xl bg-white border border-gray-100 text-gray-300 hover:text-red-600 hover:border-red-100 transition-all"
                     >
                       <i className="fas fa-trash"></i>
                     </button>
@@ -125,12 +141,10 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ questions, onDeleteQuestion
                 }`}>
                   {q.difficulty}
                 </span>
-                <button 
-                  onClick={() => onDeleteQuestion(q.id)}
-                  className="text-gray-300 hover:text-red-600 p-1"
-                >
-                  <i className="fas fa-trash"></i>
-                </button>
+                <div className="flex gap-2">
+                  <button onClick={() => navigate(`/edit-question/${q.id}`)} className="text-indigo-400 p-2"><i className="fas fa-edit"></i></button>
+                  <button onClick={() => { if(window.confirm('Xóa câu hỏi?')) onDeleteQuestion(q.id); }} className="text-gray-300 p-2"><i className="fas fa-trash"></i></button>
+                </div>
               </div>
               <p className="text-base font-bold text-gray-800 leading-snug">{q.text}</p>
               <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-50 mt-2">

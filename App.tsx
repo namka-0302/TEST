@@ -11,6 +11,7 @@ import LearningMode from './components/LearningMode';
 import QuestionManualAdd from './components/QuestionManualAdd';
 import StudentManagement from './components/StudentManagement';
 import SystemHistory from './components/SystemHistory';
+import QuizManagement from './components/QuizManagement';
 import Login from './components/Login';
 import { Question, Quiz, User, Account, QuizResult } from './types';
 import { SEED_QUESTIONS } from './data/seedData';
@@ -27,7 +28,6 @@ const App: React.FC = () => {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [results, setResults] = useState<QuizResult[]>([]);
 
-  // Hàm load dữ liệu từ localStorage
   const loadInitialData = useCallback(() => {
     const savedQuestions = localStorage.getItem('quizmaster_questions');
     const savedQuizzes = localStorage.getItem('quizmaster_quizzes');
@@ -42,9 +42,9 @@ const App: React.FC = () => {
       localStorage.setItem('quizmaster_questions', JSON.stringify(SEED_QUESTIONS));
     }
 
-    if (savedQuizzes) setQuizzes(JSON.parse(savedQuizzes));
+    setQuizzes(savedQuizzes ? JSON.parse(savedQuizzes) : []);
+    setResults(savedResults ? JSON.parse(savedResults) : []);
     if (savedUser) setUser(JSON.parse(savedUser));
-    if (savedResults) setResults(JSON.parse(savedResults));
     
     if (savedAccounts) {
       setAccounts(JSON.parse(savedAccounts));
@@ -54,29 +54,23 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Khởi tạo dữ liệu lần đầu
   useEffect(() => {
     loadInitialData();
-
-    // Quan trọng: Lắng nghe sự kiện 'storage' để đồng bộ giữa các tab
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key && e.key.startsWith('quizmaster_')) {
-        console.log('Phát hiện thay đổi dữ liệu từ tab khác, đang đồng bộ...');
         loadInitialData();
       }
     };
-
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [loadInitialData]);
 
-  // Lưu dữ liệu mỗi khi state thay đổi (trong tab hiện tại)
   useEffect(() => {
-    if (questions.length > 0) localStorage.setItem('quizmaster_questions', JSON.stringify(questions));
+    localStorage.setItem('quizmaster_questions', JSON.stringify(questions));
   }, [questions]);
 
   useEffect(() => {
-    if (quizzes.length > 0) localStorage.setItem('quizmaster_quizzes', JSON.stringify(quizzes));
+    localStorage.setItem('quizmaster_quizzes', JSON.stringify(quizzes));
   }, [quizzes]);
 
   useEffect(() => {
@@ -89,21 +83,21 @@ const App: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
-    if (accounts.length > 0) localStorage.setItem('quizmaster_accounts', JSON.stringify(accounts));
+    localStorage.setItem('quizmaster_accounts', JSON.stringify(accounts));
   }, [accounts]);
 
   const addQuestions = (newQuestions: Question[]) => {
     setQuestions(prev => [...newQuestions, ...prev]);
   };
 
+  const updateQuestion = (updatedQ: Question) => {
+    setQuestions(prev => prev.map(q => q.id === updatedQ.id ? updatedQ : q));
+  };
+
   const updateQuestionSeen = (questionIds: string[]) => {
-    setQuestions(prev => {
-      const updated = prev.map(q => 
-        questionIds.includes(q.id) ? { ...q, seenCount: q.seenCount + 1 } : q
-      );
-      localStorage.setItem('quizmaster_questions', JSON.stringify(updated));
-      return updated;
-    });
+    setQuestions(prev => prev.map(q => 
+      questionIds.includes(q.id) ? { ...q, seenCount: q.seenCount + 1 } : q
+    ));
   };
 
   const deleteQuestion = (id: string) => {
@@ -126,10 +120,6 @@ const App: React.FC = () => {
     setResults(prev => [result, ...prev]);
   };
 
-  const logout = () => {
-    setUser(null);
-  };
-
   if (!user) {
     return <Login onLogin={setUser} accounts={accounts} onRegister={(acc) => setAccounts(prev => [...prev, acc])} />;
   }
@@ -140,8 +130,7 @@ const App: React.FC = () => {
     <HashRouter>
       <div className="min-h-screen flex flex-col bg-gray-50/50">
         <div className="h-[env(safe-area-inset-top)] bg-white sticky top-0 z-[110]"></div>
-        
-        <Navbar user={user} onLogout={logout} />
+        <Navbar user={user} onLogout={() => setUser(null)} />
         
         <main className="flex-grow container mx-auto px-4 py-6 md:py-8">
           <Routes>
@@ -151,7 +140,9 @@ const App: React.FC = () => {
               <>
                 <Route path="/upload" element={<UploadView onAddQuestions={addQuestions} />} />
                 <Route path="/manual-add" element={<QuestionManualAdd onAddQuestion={(q) => addQuestions([q])} />} />
+                <Route path="/edit-question/:id" element={<QuestionManualAdd questions={questions} onAddQuestion={updateQuestion} isEdit={true} />} />
                 <Route path="/bank" element={<QuestionBank questions={questions} onDeleteQuestion={deleteQuestion} />} />
+                <Route path="/quizzes" element={<QuizManagement quizzes={quizzes} onDeleteQuiz={deleteQuiz} />} />
                 <Route path="/create-quiz" element={<QuizCreator questions={questions} onSaveQuiz={addQuiz} quizzes={quizzes} />} />
                 <Route path="/edit-quiz/:id" element={<QuizCreator questions={questions} onSaveQuiz={updateQuiz} quizzes={quizzes} isEdit={true} />} />
                 <Route path="/students" element={<StudentManagement accounts={accounts} results={results} questionsCount={questions.length} />} />
@@ -172,7 +163,7 @@ const App: React.FC = () => {
         <footer className="bg-white border-t py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-center text-gray-400 text-[10px] uppercase tracking-widest font-black">
           <div className="container mx-auto">
             <p className="mb-1 text-gray-500">QuizMaster AI System</p>
-            <p>© 2024 - Real-time Sync v4.1</p>
+            <p>© 2024 - Management Pro v4.5</p>
           </div>
         </footer>
       </div>
