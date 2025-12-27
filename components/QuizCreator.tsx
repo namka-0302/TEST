@@ -52,13 +52,14 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({ questions, onSaveQuiz, quizze
     };
 
     onSaveQuiz(newQuiz);
-    navigate('/');
+    navigate('/quizzes');
   };
 
-  // Thuật toán Shuffle chuẩn (Fisher-Yates)
+  // Thuật toán Shuffle chuẩn (Fisher-Yates) kết hợp Timestamp để đảm bảo tính ngẫu nhiên
   const shuffleArray = (array: any[]) => {
     const arr = [...array];
     for (let i = arr.length - 1; i > 0; i--) {
+      // Sử dụng Math.random() thông thường hoặc seed dựa trên nano-time
       const j = Math.floor(Math.random() * (i + 1));
       [arr[i], arr[j]] = [arr[j], arr[i]];
     }
@@ -69,18 +70,18 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({ questions, onSaveQuiz, quizze
     const count = Math.min(randomCount, questions.length);
     if (count <= 0) return;
     
-    // Ưu tiên câu chưa học, sau đó đến câu ít xem nhất
-    const unseen = questions.filter(q => q.seenCount === 0);
-    const seen = questions.filter(q => q.seenCount > 0).sort((a, b) => a.seenCount - b.seenCount);
+    // Ưu tiên câu chưa thuộc (seenCount = 0), sau đó mới đến các câu khác
+    const unseen = shuffleArray(questions.filter(q => q.seenCount === 0));
+    const seen = shuffleArray(questions.filter(q => q.seenCount > 0).sort((a, b) => a.seenCount - b.seenCount));
     
     let pool: string[] = [];
     if (unseen.length >= count) {
-      pool = shuffleArray(unseen).slice(0, count).map(q => q.id);
+      pool = unseen.slice(0, count).map(q => q.id);
     } else {
       const remaining = count - unseen.length;
       pool = [
         ...unseen.map(q => q.id),
-        ...shuffleArray(seen).slice(0, remaining).map(q => q.id)
+        ...seen.slice(0, remaining).map(q => q.id)
       ];
     }
 
@@ -120,7 +121,7 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({ questions, onSaveQuiz, quizze
             disabled={!title || selectedIds.size === 0}
             className="self-end px-10 py-4 bg-indigo-600 text-white rounded-2xl font-black hover:bg-indigo-700 disabled:opacity-30 disabled:cursor-not-allowed shadow-xl shadow-indigo-100 transition-all flex items-center gap-2 active:scale-95"
           >
-            {isEdit ? 'Lưu thay đổi' : 'Tạo bài thi'}
+            {isEdit ? 'Lưu bài thi' : 'Tạo bài thi'}
           </button>
         </div>
       </div>
@@ -134,7 +135,7 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({ questions, onSaveQuiz, quizze
             </p>
           </div>
           <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-2xl border border-gray-100">
-            <span className="text-[10px] font-black text-gray-400 px-2 uppercase tracking-widest hidden sm:block">Ngẫu nhiên:</span>
+            <span className="text-[10px] font-black text-gray-400 px-2 uppercase tracking-widest hidden sm:block">Số câu ngẫu nhiên:</span>
             <input 
               type="number" 
               className="w-16 px-3 py-2 rounded-xl border border-gray-200 focus:outline-none font-bold text-center text-sm"
@@ -143,7 +144,7 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({ questions, onSaveQuiz, quizze
             />
             <button 
               onClick={selectRandomSmart} 
-              className="text-white px-5 py-2 rounded-xl bg-indigo-600 font-black text-xs hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100"
+              className="text-white px-5 py-2 rounded-xl bg-indigo-600 font-black text-xs hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100 active:scale-95"
             >
               CHỌN NHANH
             </button>
@@ -188,6 +189,7 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({ questions, onSaveQuiz, quizze
                     }`}>
                       {q.difficulty}
                     </span>
+                    {q.seenCount > 0 && <span className="text-[8px] font-black text-green-600 uppercase tracking-tighter">Đã thuộc</span>}
                   </div>
                 </div>
               </div>

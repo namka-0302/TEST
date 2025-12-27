@@ -32,9 +32,9 @@ const App: React.FC = () => {
   
   const lastSyncRef = useRef<number>(0);
 
-  const syncData = useCallback(async () => {
-    // Chống spam sync quá dày đặc
-    if (Date.now() - lastSyncRef.current < 2000) return;
+  const syncData = useCallback(async (isInitial = false) => {
+    // Chống spam sync - tối thiểu 3 giây giữa các lần gọi thủ công
+    if (!isInitial && Date.now() - lastSyncRef.current < 3000) return;
     lastSyncRef.current = Date.now();
 
     try {
@@ -61,16 +61,17 @@ const App: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
-    syncData();
+    syncData(true);
 
-    // Đồng bộ Local Storage (cho nhiều tab)
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key?.startsWith('quizmaster_')) syncData();
     };
     window.addEventListener('storage', handleStorageChange);
 
-    // Đồng bộ Cloud (Long Polling)
-    const syncInterval = setInterval(syncData, 15000);
+    // TĂNG TỐC ĐỘ ĐỒNG BỘ: 5 giây/lần để máy học sinh nhận đề thi ngay lập tức
+    const syncInterval = setInterval(() => {
+      syncData();
+    }, 5000);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
@@ -91,6 +92,7 @@ const App: React.FC = () => {
   };
 
   const updateQuestionSeen = async (ids: string[]) => {
+    // Tăng seenCount chỉ khi học sinh trả lời đúng (hoặc hoàn thành bài thi)
     const updated = questions.map(q => 
       ids.includes(q.id) ? { ...q, seenCount: q.seenCount + 1 } : q
     );
@@ -140,7 +142,7 @@ const App: React.FC = () => {
            <i className="fas fa-graduation-cap text-3xl"></i>
         </div>
         <h2 className="text-lg font-black tracking-tight">QuizMaster AI</h2>
-        <p className="text-indigo-300 text-xs mt-2">Đang kết nối Cloud Sync...</p>
+        <p className="text-indigo-300 text-[10px] mt-2 font-bold uppercase tracking-widest">Đang thiết lập Cloud Sync...</p>
       </div>
     );
   }
@@ -180,11 +182,16 @@ const App: React.FC = () => {
 
             <Route path="/learn" element={<LearningMode questions={questions} onMarkSeen={(id) => updateQuestionSeen([id])} />} />
             <Route path="/quiz/:id" element={<QuizTake quizzes={quizzes} user={user} onComplete={(ids, result) => {
-              updateQuestionSeen(ids);
+              // Ở chế độ thi, những câu trả lời đúng mới được tính là "đã thuộc"
+              const correctQuestionIds = result ? Object.keys(result.answers).filter(qId => {
+                const q = questions.find(item => item.id === qId);
+                const correctChoice = q?.choices.find(c => c.isCorrect);
+                return result.answers[qId] === correctChoice?.id;
+              }) : [];
+              updateQuestionSeen(correctQuestionIds);
               if (result) saveResult(result);
             }} />} />
             
-            {/* Review Mode Route: Reuse QuizTake component for reviewing past results */}
             <Route path="/quiz-review/:id" element={<QuizTake quizzes={quizzes} user={user} isReviewMode={true} allResults={results} />} />
             
             <Route path="*" element={<Navigate to="/" replace />} />
