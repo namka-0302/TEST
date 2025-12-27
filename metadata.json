@@ -1,0 +1,7 @@
+{
+  "name": "QuizMaster AI - Smart Question Bank",
+  "description": "A powerful tool for teachers to upload Word documents, automatically parse multiple-choice questions using AI, and create interactive online quizzes with real-time grading and timers.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
