@@ -32,16 +32,20 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, isCloud }) => {
     <nav className="bg-white border-b sticky top-0 z-[100] shadow-sm">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2" onClick={closeMenu}>
-          <div className="bg-indigo-600 p-2 rounded-xl">
+          <div className="bg-indigo-600 p-2 rounded-xl shadow-lg shadow-indigo-100">
             <i className="fas fa-graduation-cap text-white text-lg"></i>
           </div>
           <span className="font-black text-lg tracking-tight text-gray-900">QuizMaster</span>
           
-          <div className={`ml-2 flex items-center gap-1.5 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-tighter ${
-            db.connectionType === 'Vercel' ? 'bg-indigo-50 text-indigo-600' : 'bg-amber-50 text-amber-600'
+          <div className={`ml-2 flex items-center gap-1.5 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-tighter transition-all ${
+            db.connectionType === 'Vercel' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
           }`}>
+            <span className={`relative flex h-1.5 w-1.5 ${db.connectionType === 'Vercel' ? 'flex' : 'hidden'}`}>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
+            </span>
             <i className={`fas ${db.connectionType === 'Vercel' ? 'fa-cloud' : 'fa-house-user'}`}></i>
-            {db.connectionType === 'Vercel' ? 'Vercel Cloud Sync' : 'Offline Mode'}
+            {db.connectionType === 'Vercel' ? 'Cloud Sync' : 'Offline'}
           </div>
         </Link>
         
@@ -70,7 +74,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, isCloud }) => {
           </div>
           <button 
             onClick={onLogout}
-            className="hidden sm:flex w-10 h-10 rounded-xl bg-gray-50 items-center justify-center text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+            className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
           >
             <i className="fas fa-sign-out-alt"></i>
           </button>
