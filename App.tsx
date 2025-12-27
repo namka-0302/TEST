@@ -143,6 +143,7 @@ const App: React.FC = () => {
   const addQuiz = async (quiz: Quiz) => {
     await safeUpdate(async () => {
       const updated = [quiz, ...quizzes];
+      setQuestions(prev => prev); // Dummy update to trigger re-renders if needed
       setQuizzes(updated);
       await db.saveQuizzes(updated);
     });
@@ -223,7 +224,7 @@ const App: React.FC = () => {
             
             {isAdmin && (
               <>
-                <Route path="/upload" element={<UploadView onAddQuestions={addQuestions} />} />
+                <Route path="/upload" element={<UploadView onAddQuestions={addQuestions} questions={questions} />} />
                 <Route path="/manual-add" element={<QuestionManualAdd onAddQuestion={(q) => addQuestions([q])} />} />
                 <Route path="/edit-question/:id" element={<QuestionManualAdd questions={questions} onAddQuestion={updateQuestion} isEdit={true} />} />
                 <Route path="/bank" element={<QuestionBank questions={questions} onDeleteQuestion={deleteQuestion} />} />
