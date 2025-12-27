@@ -19,5 +19,5 @@
     "types": ["node"]
   },
   "include": ["index.tsx", "App.tsx", "services/**/*.ts", "components/**/*.tsx", "types.ts", "data/**/*.ts"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "exclude": ["node_modules", "dist", "vite.config.ts"]
 }
