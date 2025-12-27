@@ -114,6 +114,14 @@ const App: React.FC = () => {
     setQuizzes(prev => [quiz, ...prev]);
   };
 
+  const updateQuiz = (updatedQuiz: Quiz) => {
+    setQuizzes(prev => prev.map(q => q.id === updatedQuiz.id ? updatedQuiz : q));
+  };
+
+  const deleteQuiz = (id: string) => {
+    setQuizzes(prev => prev.filter(q => q.id !== id));
+  };
+
   const saveResult = (result: QuizResult) => {
     setResults(prev => [result, ...prev]);
   };
@@ -137,14 +145,15 @@ const App: React.FC = () => {
         
         <main className="flex-grow container mx-auto px-4 py-6 md:py-8">
           <Routes>
-            <Route path="/" element={<Dashboard user={user} questions={questions} quizzes={quizzes} accounts={accounts} results={results} />} />
+            <Route path="/" element={<Dashboard user={user} questions={questions} quizzes={quizzes} accounts={accounts} results={results} onDeleteQuiz={deleteQuiz} />} />
             
             {isAdmin && (
               <>
                 <Route path="/upload" element={<UploadView onAddQuestions={addQuestions} />} />
                 <Route path="/manual-add" element={<QuestionManualAdd onAddQuestion={(q) => addQuestions([q])} />} />
                 <Route path="/bank" element={<QuestionBank questions={questions} onDeleteQuestion={deleteQuestion} />} />
-                <Route path="/create-quiz" element={<QuizCreator questions={questions} onSaveQuiz={addQuiz} />} />
+                <Route path="/create-quiz" element={<QuizCreator questions={questions} onSaveQuiz={addQuiz} quizzes={quizzes} />} />
+                <Route path="/edit-quiz/:id" element={<QuizCreator questions={questions} onSaveQuiz={updateQuiz} quizzes={quizzes} isEdit={true} />} />
                 <Route path="/students" element={<StudentManagement accounts={accounts} results={results} questionsCount={questions.length} />} />
                 <Route path="/history" element={<SystemHistory results={results} />} />
               </>
@@ -163,7 +172,7 @@ const App: React.FC = () => {
         <footer className="bg-white border-t py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-center text-gray-400 text-[10px] uppercase tracking-widest font-black">
           <div className="container mx-auto">
             <p className="mb-1 text-gray-500">QuizMaster AI System</p>
-            <p>© 2024 - Real-time Sync v4.0</p>
+            <p>© 2024 - Real-time Sync v4.1</p>
           </div>
         </footer>
       </div>

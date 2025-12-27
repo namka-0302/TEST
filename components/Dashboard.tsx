@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Question, Quiz, User, Account, QuizResult } from '../types';
 
 interface DashboardProps {
@@ -9,11 +9,19 @@ interface DashboardProps {
   quizzes: Quiz[];
   accounts: Account[];
   results: QuizResult[];
+  onDeleteQuiz?: (id: string) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, questions, quizzes, accounts, results }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, questions, quizzes, accounts, results, onDeleteQuiz }) => {
   const isAdmin = user.role === 'Admin';
+  const navigate = useNavigate();
   
+  const handleDeleteQuiz = (id: string, title: string) => {
+    if (window.confirm(`Bạn có chắc chắn muốn xóa bài thi "${title}" không?`)) {
+      onDeleteQuiz?.(id);
+    }
+  };
+
   if (isAdmin) {
     const studentCount = accounts.filter(a => a.role === 'User').length;
     
@@ -106,7 +114,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, questions, quizzes, account
         <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
           <div className="p-6 md:p-8 border-b border-gray-50 flex justify-between items-center">
             <h2 className="text-xl font-black text-gray-900">Bài thi mới tạo</h2>
-            <Link to="/bank" className="text-indigo-600 font-black text-sm flex items-center gap-1">Toàn bộ <i className="fas fa-chevron-right text-[10px]"></i></Link>
+            <Link to="/create-quiz" className="text-indigo-600 font-black text-sm flex items-center gap-1">Tạo thêm <i className="fas fa-chevron-right text-[10px]"></i></Link>
           </div>
           {quizzes.length === 0 ? (
             <div className="p-16 text-center">
@@ -118,7 +126,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, questions, quizzes, account
             </div>
           ) : (
             <div className="p-3 md:p-4 space-y-2">
-              {quizzes.slice(0, 5).map(quiz => (
+              {quizzes.slice(0, 10).map(quiz => (
                 <div key={quiz.id} className="flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 transition-all border border-transparent hover:border-gray-100 group">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center text-gray-300 group-hover:bg-indigo-50 group-hover:text-indigo-400 transition-colors">
@@ -130,10 +138,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user, questions, quizzes, account
                     </div>
                   </div>
                   <div className="hidden sm:flex gap-2">
-                     <button className="w-9 h-9 rounded-xl text-gray-300 hover:text-indigo-600 transition-colors"><i className="fas fa-edit"></i></button>
-                     <button className="w-9 h-9 rounded-xl text-gray-300 hover:text-red-600 transition-colors"><i className="fas fa-trash-alt"></i></button>
+                     <button 
+                       onClick={() => navigate(`/edit-quiz/${quiz.id}`)}
+                       className="w-9 h-9 rounded-xl text-gray-300 hover:text-indigo-600 transition-colors"
+                     >
+                       <i className="fas fa-edit"></i>
+                     </button>
+                     <button 
+                       onClick={() => handleDeleteQuiz(quiz.id, quiz.title)}
+                       className="w-9 h-9 rounded-xl text-gray-300 hover:text-red-600 transition-colors"
+                     >
+                       <i className="fas fa-trash-alt"></i>
+                     </button>
                   </div>
-                  <i className="fas fa-chevron-right text-gray-200 sm:hidden"></i>
+                  <i onClick={() => navigate(`/edit-quiz/${quiz.id}`)} className="fas fa-chevron-right text-gray-200 sm:hidden"></i>
                 </div>
               ))}
             </div>
