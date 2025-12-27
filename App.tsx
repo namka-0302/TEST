@@ -36,13 +36,13 @@ const App: React.FC = () => {
 
   const syncData = useCallback(async (isInitial = false) => {
     if (isUpdatingRef.current) return;
-    if (!isInitial && Date.now() - lastSyncRef.current < 2000) return;
+    // Tăng thời gian giãn cách sync để mượt mà hơn
+    if (!isInitial && Date.now() - lastSyncRef.current < 5000) return;
     
     setIsSyncing(true);
     lastSyncRef.current = Date.now();
 
     try {
-      // Đảm bảo db đã check connection xong trước khi sync lần đầu
       if (isInitial) await db.checkConnection();
 
       const [qData, quizData, resData, accData] = await Promise.all([
@@ -52,8 +52,9 @@ const App: React.FC = () => {
         db.getAccounts()
       ]);
 
-      // QUAN TRỌNG: Nếu đang ở chế độ Cloud, chúng ta chấp nhận mảng rỗng [] từ server
-      // Không tự ý fallback về SEED_QUESTIONS nếu server thực sự không có dữ liệu
+      // Logic đồng bộ thông minh:
+      // Nếu là Cloud, ưu tiên tuyệt đối dữ liệu từ Cloud (kể cả rỗng)
+      // Nếu là Local, dùng Local hoặc Seed nếu trống
       if (qData !== null) {
         if (db.isCloud) {
           setQuestions(qData);
@@ -64,14 +65,7 @@ const App: React.FC = () => {
       
       if (quizData !== null) setQuizzes(quizData);
       if (resData !== null) setResults(resData);
-      
-      if (accData !== null) {
-        if (db.isCloud) {
-          setAccounts(accData.length > 0 ? accData : DEFAULT_ACCOUNTS);
-        } else {
-          setAccounts(accData.length > 0 ? accData : DEFAULT_ACCOUNTS);
-        }
-      }
+      if (accData !== null) setAccounts(accData.length > 0 ? accData : DEFAULT_ACCOUNTS);
 
       const savedUser = localStorage.getItem('quizmaster_user');
       if (savedUser && !user) setUser(JSON.parse(savedUser));
@@ -81,7 +75,8 @@ const App: React.FC = () => {
       console.error("Lỗi đồng bộ dữ liệu:", err);
       setLoading(false);
     } finally {
-      setTimeout(() => setIsSyncing(false), 800);
+      // Giữ trạng thái syncing thêm một chút để UI ổn định
+      setTimeout(() => setIsSyncing(false), 1500);
     }
   }, [user]);
 
@@ -90,7 +85,7 @@ const App: React.FC = () => {
 
     const syncInterval = setInterval(() => {
       syncData();
-    }, 10000); // 10s một lần để tiết kiệm tài nguyên Cloud
+    }, 15000); // 15s cho cloud sync ngầm
 
     return () => clearInterval(syncInterval);
   }, [syncData]);
@@ -99,11 +94,13 @@ const App: React.FC = () => {
     isUpdatingRef.current = true;
     try {
       await updateFn();
-      lastSyncRef.current = Date.now();
+      // Sync ngay lập tức sau khi update
+      lastSyncRef.current = 0;
+      await syncData();
     } finally {
       setTimeout(() => {
         isUpdatingRef.current = false;
-      }, 3000);
+      }, 2000);
     }
   };
 
@@ -177,7 +174,7 @@ const App: React.FC = () => {
     setUser(u);
     if (u) {
       localStorage.setItem('quizmaster_user', JSON.stringify(u));
-      syncData(true); // Sync ngay khi login
+      syncData(true);
     } else {
       localStorage.removeItem('quizmaster_user');
     }
@@ -185,22 +182,15 @@ const App: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-indigo-900 text-white p-6">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#0a0a1a] text-white p-6">
         <div className="relative">
-          <div className="w-20 h-20 bg-white/10 rounded-[2.5rem] flex items-center justify-center mb-8 animate-float">
+          <div className="w-24 h-24 bg-indigo-600 rounded-[2.5rem] flex items-center justify-center mb-8 animate-float shadow-[0_0_50px_rgba(79,70,229,0.3)]">
              <i className="fas fa-graduation-cap text-4xl"></i>
           </div>
-          <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full border-4 border-indigo-900 animate-pulse"></div>
+          <div className="absolute -top-2 -right-2 w-8 h-8 bg-green-500 rounded-full border-4 border-[#0a0a1a] animate-pulse"></div>
         </div>
-        <h2 className="text-2xl font-black tracking-tight">QuizMaster AI</h2>
-        <div className="mt-4 flex flex-col items-center">
-           <div className="flex gap-1 mb-2">
-              <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
-              <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-              <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-           </div>
-           <p className="text-indigo-300 text-[10px] font-black uppercase tracking-[0.2em]">Initial Cloud Syncing</p>
-        </div>
+        <h2 className="text-3xl font-black tracking-tighter mb-2">QuizMaster AI</h2>
+        <p className="text-indigo-400 font-bold uppercase tracking-[0.3em] text-[10px]">Cloud Syncing Data</p>
       </div>
     );
   }
@@ -219,10 +209,10 @@ const App: React.FC = () => {
 
   return (
     <HashRouter>
-      <div className="min-h-screen flex flex-col bg-gray-50/50">
+      <div className="min-h-screen flex flex-col bg-gray-50/30">
         <Navbar user={user} onLogout={() => handleLogin(null)} isCloud={db.isCloud} isSyncing={isSyncing} />
         
-        <main className="flex-grow container mx-auto px-4 py-6">
+        <main className="flex-grow container mx-auto px-4 py-8">
           <Routes>
             <Route path="/" element={<Dashboard user={user} questions={questions} quizzes={quizzes} accounts={accounts} results={results} onDeleteQuiz={deleteQuiz} onManualSync={() => syncData(true)} />} />
             
@@ -252,7 +242,6 @@ const App: React.FC = () => {
             }} />} />
             
             <Route path="/quiz-review/:id" element={<QuizTake quizzes={quizzes} user={user} isReviewMode={true} allResults={results} />} />
-            
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
