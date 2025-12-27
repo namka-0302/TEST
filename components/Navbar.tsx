@@ -2,13 +2,15 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { User } from '../types';
+import { db } from '../services/dbService';
 
 interface NavbarProps {
   user: User;
   onLogout: () => void;
+  isCloud?: boolean;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
+const Navbar: React.FC<NavbarProps> = ({ user, onLogout, isCloud }) => {
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const isAdmin = user.role === 'Admin';
@@ -34,9 +36,15 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
             <i className="fas fa-graduation-cap text-white text-lg"></i>
           </div>
           <span className="font-black text-lg tracking-tight text-gray-900">QuizMaster</span>
+          
+          <div className={`ml-2 flex items-center gap-1.5 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-tighter ${
+            db.connectionType === 'Vercel' ? 'bg-indigo-50 text-indigo-600' : 'bg-amber-50 text-amber-600'
+          }`}>
+            <i className={`fas ${db.connectionType === 'Vercel' ? 'fa-cloud' : 'fa-house-user'}`}></i>
+            {db.connectionType === 'Vercel' ? 'Vercel Cloud Sync' : 'Offline Mode'}
+          </div>
         </Link>
         
-        {/* Desktop Navigation */}
         <div className="hidden lg:flex items-center gap-2">
           {navItems.map((item) => (
             <Link
@@ -60,54 +68,29 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
               {user.role}
             </span>
           </div>
-          
           <button 
             onClick={onLogout}
             className="hidden sm:flex w-10 h-10 rounded-xl bg-gray-50 items-center justify-center text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
           >
             <i className="fas fa-sign-out-alt"></i>
           </button>
-
-          {/* Mobile Menu Toggle */}
-          <button 
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="lg:hidden w-10 h-10 flex items-center justify-center text-gray-600 bg-gray-50 rounded-xl"
-          >
+          <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="lg:hidden w-10 h-10 flex items-center justify-center text-gray-600 bg-gray-50 rounded-xl">
             <i className={`fas ${isMenuOpen ? 'fa-times' : 'fa-bars'}`}></i>
           </button>
         </div>
       </div>
 
-      {/* Mobile Menu Drawer */}
       {isMenuOpen && (
         <div className="lg:hidden absolute top-16 left-0 w-full bg-white border-b shadow-xl animate-slideDown overflow-hidden transition-all">
           <div className="p-4 space-y-2">
             {navItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={closeMenu}
-                className={`flex items-center gap-4 p-4 rounded-2xl text-base font-bold ${
-                  location.pathname === item.path ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-600 bg-gray-50'
-                }`}
-              >
+              <Link key={item.path} to={item.path} onClick={closeMenu} className={`flex items-center gap-4 p-4 rounded-2xl text-base font-bold ${location.pathname === item.path ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-600 bg-gray-50'}`}>
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${location.pathname === item.path ? 'bg-white/20' : 'bg-white'}`}>
                   <i className={`fas ${item.icon}`}></i>
                 </div>
                 {item.name}
               </Link>
             ))}
-            <div className="pt-4 mt-2 border-t border-gray-100">
-              <button 
-                onClick={onLogout}
-                className="w-full flex items-center gap-4 p-4 rounded-2xl text-base font-bold text-red-600 bg-red-50"
-              >
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white text-red-600">
-                  <i className="fas fa-sign-out-alt"></i>
-                </div>
-                Đăng xuất
-              </button>
-            </div>
           </div>
         </div>
       )}
