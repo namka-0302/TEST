@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Dashboard from './components/Dashboard';
@@ -29,8 +29,14 @@ const App: React.FC = () => {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [results, setResults] = useState<QuizResult[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const lastSyncRef = useRef<number>(0);
 
   const syncData = useCallback(async () => {
+    // Chống spam sync quá dày đặc
+    if (Date.now() - lastSyncRef.current < 2000) return;
+    lastSyncRef.current = Date.now();
+
     try {
       const [qData, quizData, resData, accData] = await Promise.all([
         db.getQuestions(),
@@ -39,51 +45,39 @@ const App: React.FC = () => {
         db.getAccounts()
       ]);
 
-      if (qData.length > 0) setQuestions(qData);
-      else if (!db.isCloud) setQuestions(SEED_QUESTIONS);
-
+      setQuestions(qData.length > 0 ? qData : (db.isCloud ? [] : SEED_QUESTIONS));
       setQuizzes(quizData);
       setResults(resData);
-      
-      if (accData.length > 0) setAccounts(accData);
-      else if (!db.isCloud) setAccounts(DEFAULT_ACCOUNTS);
+      setAccounts(accData.length > 0 ? accData : (db.isCloud ? [] : DEFAULT_ACCOUNTS));
 
       const savedUser = localStorage.getItem('quizmaster_user');
-      if (savedUser) setUser(JSON.parse(savedUser));
+      if (savedUser && !user) setUser(JSON.parse(savedUser));
       
       setLoading(false);
     } catch (err) {
       console.error("Lỗi đồng bộ dữ liệu:", err);
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
-  // Khởi tạo và lắng nghe thay đổi Real-time
   useEffect(() => {
     syncData();
 
-    // 1. Lắng nghe tab trình duyệt khác (Local Mode)
+    // Đồng bộ Local Storage (cho nhiều tab)
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key && e.key.startsWith('quizmaster_')) syncData();
+      if (e.key?.startsWith('quizmaster_')) syncData();
     };
     window.addEventListener('storage', handleStorageChange);
 
-    // 2. Lắng nghe Supabase (Cloud Mode)
-    const qSub = db.subscribe('questions', syncData);
-    const quizSub = db.subscribe('quizzes', syncData);
-    const resSub = db.subscribe('results', syncData);
-    const accSub = db.subscribe('accounts', syncData);
+    // Đồng bộ Cloud (Long Polling)
+    const syncInterval = setInterval(syncData, 15000);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
-      qSub?.unsubscribe();
-      quizSub?.unsubscribe();
-      resSub?.unsubscribe();
-      accSub?.unsubscribe();
+      clearInterval(syncInterval);
     };
   }, [syncData]);
 
-  // Cập nhật State và lưu vào DB
   const addQuestions = async (newQs: Question[]) => {
     const updated = [...newQs, ...questions];
     setQuestions(updated);
@@ -125,8 +119,7 @@ const App: React.FC = () => {
   const deleteQuiz = async (id: string) => {
     const updated = quizzes.filter(q => q.id !== id);
     setQuizzes(updated);
-    if (db.isCloud) await db.deleteQuiz(id);
-    else await db.saveQuizzes(updated);
+    await db.deleteQuiz(id);
   };
 
   const saveResult = async (result: QuizResult) => {
@@ -143,24 +136,21 @@ const App: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-indigo-900 text-white">
-        <div className="w-20 h-20 bg-white/10 rounded-3xl flex items-center justify-center mb-6 animate-pulse">
-           <i className="fas fa-graduation-cap text-4xl"></i>
+        <div className="w-16 h-16 bg-white/10 rounded-3xl flex items-center justify-center mb-6 animate-pulse">
+           <i className="fas fa-graduation-cap text-3xl"></i>
         </div>
-        <h2 className="text-xl font-black animate-bounce">QuizMaster AI</h2>
-        <p className="text-indigo-300 text-sm mt-2">Đang kết nối Cloud Sync...</p>
+        <h2 className="text-lg font-black tracking-tight">QuizMaster AI</h2>
+        <p className="text-indigo-300 text-xs mt-2">Đang kết nối Cloud Sync...</p>
       </div>
     );
   }
 
   if (!user) {
-    return <Login 
-      onLogin={handleLogin} 
-      accounts={accounts} 
-      onRegister={async (acc) => {
-        setAccounts(prev => [...prev, acc]);
-        await db.saveAccount(acc);
-      }} 
-    />;
+    return <Login onLogin={handleLogin} accounts={accounts} onRegister={async (acc) => {
+      const updated = [...accounts, acc];
+      setAccounts(updated);
+      await db.saveAccount(acc);
+    }} />;
   }
 
   const isAdmin = user.role === 'Admin';
@@ -168,10 +158,9 @@ const App: React.FC = () => {
   return (
     <HashRouter>
       <div className="min-h-screen flex flex-col bg-gray-50/50">
-        <div className="h-[env(safe-area-inset-top)] bg-white sticky top-0 z-[110]"></div>
         <Navbar user={user} onLogout={() => handleLogin(null)} isCloud={db.isCloud} />
         
-        <main className="flex-grow container mx-auto px-4 py-6 md:py-8">
+        <main className="flex-grow container mx-auto px-4 py-6">
           <Routes>
             <Route path="/" element={<Dashboard user={user} questions={questions} quizzes={quizzes} accounts={accounts} results={results} onDeleteQuiz={deleteQuiz} />} />
             
@@ -195,16 +184,12 @@ const App: React.FC = () => {
               if (result) saveResult(result);
             }} />} />
             
+            {/* Review Mode Route: Reuse QuizTake component for reviewing past results */}
+            <Route path="/quiz-review/:id" element={<QuizTake quizzes={quizzes} user={user} isReviewMode={true} allResults={results} />} />
+            
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
-
-        <footer className="bg-white border-t py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-center text-gray-400 text-[10px] uppercase tracking-widest font-black">
-          <div className="container mx-auto">
-            <p className="mb-1 text-gray-500">QuizMaster AI Cloud</p>
-            <p>© 2024 - Real-time v5.0 {db.isCloud ? '(Supabase Enabled)' : '(Local Mode)'}</p>
-          </div>
-        </footer>
       </div>
     </HashRouter>
   );

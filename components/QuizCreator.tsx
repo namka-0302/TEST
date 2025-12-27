@@ -18,7 +18,6 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({ questions, onSaveQuiz, quizze
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
 
-  // Load data for editing
   useEffect(() => {
     if (isEdit && id) {
       const existingQuiz = quizzes.find(q => q.id === id);
@@ -56,29 +55,36 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({ questions, onSaveQuiz, quizze
     navigate('/');
   };
 
+  // Thuật toán Shuffle chuẩn (Fisher-Yates)
+  const shuffleArray = (array: any[]) => {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  };
+
   const selectRandomSmart = () => {
     const count = Math.min(randomCount, questions.length);
     if (count <= 0) return;
     
-    // Seen tracking logic:
-    // 1. Separate unseen and seen questions
+    // Ưu tiên câu chưa học, sau đó đến câu ít xem nhất
     const unseen = questions.filter(q => q.seenCount === 0);
     const seen = questions.filter(q => q.seenCount > 0).sort((a, b) => a.seenCount - b.seenCount);
     
-    let result: string[] = [];
-    
+    let pool: string[] = [];
     if (unseen.length >= count) {
-      // If we have enough unseen, pick randomly from them
-      result = [...unseen].sort(() => 0.5 - Math.random()).slice(0, count).map(q => q.id);
+      pool = shuffleArray(unseen).slice(0, count).map(q => q.id);
     } else {
-      // If not enough unseen, take ALL unseen + fill rest from least seen
-      const unseenIds = unseen.map(q => q.id);
-      const remainingNeeded = count - unseenIds.length;
-      const seenIds = seen.slice(0, remainingNeeded).map(q => q.id);
-      result = [...unseenIds, ...seenIds];
+      const remaining = count - unseen.length;
+      pool = [
+        ...unseen.map(q => q.id),
+        ...shuffleArray(seen).slice(0, remaining).map(q => q.id)
+      ];
     }
 
-    setSelectedIds(new Set(result));
+    setSelectedIds(new Set(pool));
   };
 
   return (
@@ -124,7 +130,7 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({ questions, onSaveQuiz, quizze
           <div>
             <h3 className="text-xl font-black text-gray-900">Lựa chọn câu hỏi</h3>
             <p className="text-gray-400 text-xs font-medium mt-1">
-              Đã chọn <span className="text-indigo-600 font-black">{selectedIds.size}</span> / {questions.length} câu • {questions.filter(q => q.seenCount === 0).length} câu chưa học
+              Đã chọn <span className="text-indigo-600 font-black">{selectedIds.size}</span> / {questions.length} câu
             </p>
           </div>
           <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-2xl border border-gray-100">
@@ -182,9 +188,6 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({ questions, onSaveQuiz, quizze
                     }`}>
                       {q.difficulty}
                     </span>
-                    {q.seenCount > 0 && (
-                      <span className="text-[8px] px-2 py-0.5 bg-gray-200 text-gray-500 rounded-full font-black uppercase tracking-widest">Đã học</span>
-                    )}
                   </div>
                 </div>
               </div>
