@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Question, Quiz } from '../types';
 
@@ -17,14 +17,19 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({ questions, onSaveQuiz, quizze
   const [randomCount, setRandomCount] = useState(10);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
+  
+  // Ref để theo dõi việc đã tải dữ liệu ban đầu chưa
+  const hasInitialized = useRef(false);
 
   useEffect(() => {
-    if (isEdit && id) {
+    // Chỉ tải dữ liệu từ quizzes lên state nếu là chế độ Edit và CHƯA khởi tạo
+    if (isEdit && id && !hasInitialized.current) {
       const existingQuiz = quizzes.find(q => q.id === id);
       if (existingQuiz) {
         setTitle(existingQuiz.title);
         setDuration(existingQuiz.durationMinutes);
         setSelectedIds(new Set(existingQuiz.questions.map(q => q.id)));
+        hasInitialized.current = true; // Đánh dấu đã tải xong, không ghi đè nữa
       }
     }
   }, [id, isEdit, quizzes]);
@@ -55,11 +60,9 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({ questions, onSaveQuiz, quizze
     navigate('/quizzes');
   };
 
-  // Thuật toán Shuffle chuẩn (Fisher-Yates) kết hợp Timestamp để đảm bảo tính ngẫu nhiên
   const shuffleArray = (array: any[]) => {
     const arr = [...array];
     for (let i = arr.length - 1; i > 0; i--) {
-      // Sử dụng Math.random() thông thường hoặc seed dựa trên nano-time
       const j = Math.floor(Math.random() * (i + 1));
       [arr[i], arr[j]] = [arr[j], arr[i]];
     }
@@ -70,9 +73,9 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({ questions, onSaveQuiz, quizze
     const count = Math.min(randomCount, questions.length);
     if (count <= 0) return;
     
-    // Ưu tiên câu chưa thuộc (seenCount = 0), sau đó mới đến các câu khác
+    // Ưu tiên câu chưa thuộc, sau đó lấy thêm câu đã thuộc để đủ số lượng
     const unseen = shuffleArray(questions.filter(q => q.seenCount === 0));
-    const seen = shuffleArray(questions.filter(q => q.seenCount > 0).sort((a, b) => a.seenCount - b.seenCount));
+    const seen = shuffleArray(questions.filter(q => q.seenCount > 0));
     
     let pool: string[] = [];
     if (unseen.length >= count) {

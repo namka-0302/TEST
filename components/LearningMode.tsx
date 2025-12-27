@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Question } from '../types';
 
 interface LearningModeProps {
@@ -8,48 +8,58 @@ interface LearningModeProps {
 }
 
 const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) => {
-  // Sắp xếp câu hỏi theo số lần đã trả lời đúng (seenCount) tăng dần
-  const sortedQuestions = useMemo(() => {
-    return [...questions].sort((a, b) => a.seenCount - b.seenCount);
-  }, [questions]);
-  
-  const [currentIdx, setCurrentIdx] = useState(0);
+  // sessionQueue lưu trữ thứ tự ID các câu hỏi sẽ xuất hiện trong phiên này
+  const [sessionQueue, setSessionQueue] = useState<string[]>([]);
+  const [currentQueueIdx, setCurrentQueueIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
+  // Khởi tạo hàng đợi ban đầu: Ưu tiên những câu chưa thuộc (seenCount = 0)
   useEffect(() => {
-    const savedIdx = localStorage.getItem('quizmaster_learn_last_idx');
-    if (savedIdx && parseInt(savedIdx) < sortedQuestions.length) {
-      setCurrentIdx(parseInt(savedIdx));
-    } else if (sortedQuestions.length > 0) {
-      setCurrentIdx(0);
+    if (questions.length > 0 && !isLoaded) {
+      const unseen = questions.filter(q => q.seenCount === 0).map(q => q.id);
+      const seen = questions.filter(q => q.seenCount > 0).sort((a, b) => a.seenCount - b.seenCount).map(q => q.id);
+      
+      // Trộn ngẫu nhiên danh sách câu hỏi để bắt đầu
+      const initialQueue = [...unseen, ...seen];
+      setSessionQueue(initialQueue);
+      setIsLoaded(true);
     }
-    setIsLoaded(true);
-  }, [sortedQuestions.length]);
+  }, [questions, isLoaded]);
 
-  useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem('quizmaster_learn_last_idx', currentIdx.toString());
-    }
-  }, [currentIdx, isLoaded]);
-
-  const currentQ = sortedQuestions[currentIdx];
+  const currentQId = sessionQueue[currentQueueIdx];
+  const currentQ = useMemo(() => questions.find(q => q.id === currentQId), [questions, currentQId]);
 
   const handleNext = () => {
     if (!currentQ) return;
 
-    // KIỂM TRA ĐÁP ÁN: Chỉ khi chọn ĐÚNG mới gửi tín hiệu MarkSeen (tăng seenCount)
     const correctChoice = currentQ.choices.find(c => c.isCorrect);
-    const isAnswerCorrect = selectedChoiceId === correctChoice?.id;
+    const isAnswerCorrectLocal = selectedChoiceId === correctChoice?.id;
 
-    if (isAnswerCorrect) {
+    if (isAnswerCorrectLocal) {
+      // ĐÚNG: Gửi tín hiệu đánh dấu đã thuộc lên hệ thống
       onMarkSeen(currentQ.id);
+      
+      // Chuyển sang câu tiếp theo trong hàng đợi
+      setCurrentQueueIdx(prev => prev + 1);
+    } else {
+      // SAI: Chèn câu này vào vị trí cách đó 5 câu trong tương lai
+      const newQueue = [...sessionQueue];
+      // Vị trí chèn là index hiện tại + 5 (làm thêm 4 câu rồi gặp lại)
+      const targetIdx = currentQueueIdx + 5;
+      
+      // Chèn ID câu hiện tại vào vị trí target
+      if (targetIdx >= newQueue.length) {
+        newQueue.push(currentQ.id);
+      } else {
+        newQueue.splice(targetIdx, 0, currentQ.id);
+      }
+      
+      setSessionQueue(newQueue);
+      setCurrentQueueIdx(prev => prev + 1);
     }
-    
-    // Chuyển sang câu tiếp theo trong danh sách sorted
-    const nextIdx = (currentIdx + 1) % sortedQuestions.length;
-    setCurrentIdx(nextIdx);
+
     setRevealed(false);
     setSelectedChoiceId(null);
   };
@@ -61,9 +71,9 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
   };
 
   const handleResetProgress = () => {
-    if (confirm("Bạn có muốn quay lại học từ câu đầu tiên?")) {
-      setCurrentIdx(0);
-      localStorage.setItem('quizmaster_learn_last_idx', '0');
+    if (confirm("Bạn có muốn bắt đầu lại phiên học từ đầu?")) {
+      setIsLoaded(false);
+      setCurrentQueueIdx(0);
     }
   };
 
@@ -77,15 +87,36 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
     );
   }
 
-  if (!currentQ && sortedQuestions.length > 0) {
-    setCurrentIdx(0);
-    return null;
+  // Nếu đã hoàn thành hết hàng đợi
+  if (isLoaded && currentQueueIdx >= sessionQueue.length) {
+    return (
+      <div className="max-w-2xl mx-auto py-10 px-4 text-center bg-white rounded-3xl border border-gray-100 shadow-xl mt-10 animate-fadeIn">
+        <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">
+          <i className="fas fa-check-double"></i>
+        </div>
+        <h2 className="text-2xl font-black text-gray-900">Tuyệt vời!</h2>
+        <p className="text-gray-500 mt-2 font-medium">Bạn đã hoàn thành phiên học hiện tại.</p>
+        <button 
+          onClick={() => { setIsLoaded(false); setCurrentQueueIdx(0); }}
+          className="mt-8 px-8 py-3 bg-indigo-600 text-white rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition-all"
+        >
+          TIẾP TỤC HỌC MỚI
+        </button>
+      </div>
+    );
   }
 
-  // TIẾN ĐỘ THỰC TẾ: Dựa trên số câu đã trả lời đúng ít nhất 1 lần (seenCount > 0)
+  if (!currentQ) return null;
+
+  // Calculate if the selected answer is correct to be used in the JSX below
+  const isAnswerCorrect = selectedChoiceId === currentQ.choices.find(c => c.isCorrect)?.id;
+
+  // TIẾN ĐỘ THỰC TẾ (Cả hệ thống)
   const totalMastered = questions.filter(q => q.seenCount > 0).length;
   const globalProgress = Math.round((totalMastered / questions.length) * 100);
-  const sessionProgress = ((currentIdx + 1) / questions.length) * 100;
+  
+  // Tiến độ phiên học hiện tại
+  const sessionProgress = (currentQueueIdx / sessionQueue.length) * 100;
 
   return (
     <div className="max-w-2xl mx-auto flex flex-col h-[calc(100dvh-7rem)] md:h-auto animate-fadeIn gap-2 px-1">
@@ -105,7 +136,7 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
       </div>
 
       <div className="flex-grow flex flex-col bg-white rounded-[2rem] shadow-xl border border-gray-100 overflow-hidden relative">
-        <div className="h-1 w-full bg-gray-50 flex">
+        <div className="h-1.5 w-full bg-gray-50 flex">
           <div 
             className="bg-indigo-600 h-full transition-all duration-300"
             style={{ width: `${sessionProgress}%` }}
@@ -127,8 +158,8 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
                   </span>
                 )}
              </div>
-             <span className="font-mono text-[10px] font-black text-gray-300">
-                Câu {currentIdx + 1} / {questions.length}
+             <span className="font-mono text-[10px] font-black text-gray-300 uppercase tracking-tighter">
+                Câu {currentQueueIdx + 1} / {sessionQueue.length}
              </span>
           </div>
 
@@ -171,15 +202,16 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
           {revealed && (
             <div className="animate-slideUp mt-2 pb-2">
               <div className={`p-4 rounded-2xl border relative ${
-                selectedChoiceId === currentQ.choices.find(c => c.isCorrect)?.id ? 'bg-green-50 border-green-100' : 'bg-indigo-50 border-indigo-100'
+                isAnswerCorrect ? 'bg-green-50 border-green-100' : 'bg-indigo-50 border-indigo-100'
               }`}>
                 <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${
-                  selectedChoiceId === currentQ.choices.find(c => c.isCorrect)?.id ? 'text-green-600' : 'text-indigo-400'
+                  isAnswerCorrect ? 'text-green-600' : 'text-indigo-400'
                 }`}>
-                  {selectedChoiceId === currentQ.choices.find(c => c.isCorrect)?.id ? 'Tuyệt vời!' : 'Hãy chú ý'}
+                  {isAnswerCorrect ? 'Bạn trả lời đúng!' : 'Cần chú ý hơn'}
                 </p>
                 <p className="text-xs md:text-sm text-indigo-900 leading-relaxed font-medium italic">
-                  {currentQ.explanation || 'Đáp án đúng là ' + currentQ.choices.find(c => c.isCorrect)?.label + '. Hãy ghi nhớ kiến thức này.'}
+                  {currentQ.explanation || 'Hãy ghi nhớ đáp án đúng là ' + currentQ.choices.find(c => c.isCorrect)?.label + '.'}
+                  {!isAnswerCorrect && <span className="block mt-2 font-black text-red-600 uppercase text-[10px]">Câu này sẽ xuất hiện lại sau 4 câu nữa.</span>}
                 </p>
               </div>
             </div>
@@ -199,7 +231,6 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
         )}
       </div>
 
-      {/* Tiến độ được cập nhật đúng: Chỉ tăng khi đúng */}
       <div className="bg-indigo-900 text-white px-5 py-3 rounded-2xl shadow-lg flex items-center justify-between shrink-0 mb-2">
         <div className="flex items-center gap-3">
           <div className="relative w-8 h-8">
@@ -210,13 +241,13 @@ const LearningMode: React.FC<LearningModeProps> = ({ questions, onMarkSeen }) =>
             <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black">{globalProgress}%</span>
           </div>
           <div>
-            <p className="text-[9px] font-black uppercase text-indigo-300 tracking-widest leading-none">ĐÃ THUỘC</p>
-            <p className="text-[10px] font-bold mt-1">{totalMastered} / {questions.length} câu</p>
+            <p className="text-[9px] font-black uppercase text-indigo-300 tracking-widest leading-none">TỔNG TIẾN ĐỘ</p>
+            <p className="text-[10px] font-bold mt-1">{totalMastered} / {questions.length} câu đã thuộc</p>
           </div>
         </div>
         <div className="text-right">
           <p className="text-sm font-black leading-none">{questions.length - totalMastered}</p>
-          <p className="text-[8px] font-black uppercase text-indigo-300 tracking-tighter mt-1">CÒN LẠI</p>
+          <p className="text-[8px] font-black uppercase text-indigo-300 tracking-tighter mt-1">CẦN HỌC</p>
         </div>
       </div>
     </div>

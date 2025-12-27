@@ -31,10 +31,13 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   
   const lastSyncRef = useRef<number>(0);
+  const isUpdatingRef = useRef<boolean>(false); // Flag để chặn sync khi đang update
 
   const syncData = useCallback(async (isInitial = false) => {
-    // Chống spam sync - tối thiểu 3 giây giữa các lần gọi thủ công
+    // Chặn sync nếu đang có update cục bộ hoặc vừa mới update xong (trong 3 giây)
+    if (isUpdatingRef.current) return;
     if (!isInitial && Date.now() - lastSyncRef.current < 3000) return;
+    
     lastSyncRef.current = Date.now();
 
     try {
@@ -45,10 +48,11 @@ const App: React.FC = () => {
         db.getAccounts()
       ]);
 
-      setQuestions(qData.length > 0 ? qData : (db.isCloud ? [] : SEED_QUESTIONS));
-      setQuizzes(quizData);
-      setResults(resData);
-      setAccounts(accData.length > 0 ? accData : (db.isCloud ? [] : DEFAULT_ACCOUNTS));
+      // Chỉ cập nhật state nếu fetch thành công (không null)
+      if (qData) setQuestions(qData.length > 0 ? qData : (db.isCloud ? [] : SEED_QUESTIONS));
+      if (quizData) setQuizzes(quizData);
+      if (resData) setResults(resData);
+      if (accData) setAccounts(accData.length > 0 ? accData : (db.isCloud ? [] : DEFAULT_ACCOUNTS));
 
       const savedUser = localStorage.getItem('quizmaster_user');
       if (savedUser && !user) setUser(JSON.parse(savedUser));
@@ -68,7 +72,6 @@ const App: React.FC = () => {
     };
     window.addEventListener('storage', handleStorageChange);
 
-    // TĂNG TỐC ĐỘ ĐỒNG BỘ: 5 giây/lần để máy học sinh nhận đề thi ngay lập tức
     const syncInterval = setInterval(() => {
       syncData();
     }, 5000);
@@ -79,54 +82,84 @@ const App: React.FC = () => {
     };
   }, [syncData]);
 
+  // Hàm wrapper để quản lý việc cập nhật dữ liệu an toàn
+  const safeUpdate = async (updateFn: () => Promise<void>) => {
+    isUpdatingRef.current = true; // Chặn sync
+    try {
+      await updateFn();
+      lastSyncRef.current = Date.now(); // Reset bộ đếm chặn sync
+    } finally {
+      // Cho phép sync lại sau 2 giây để chắc chắn server đã ổn định
+      setTimeout(() => {
+        isUpdatingRef.current = false;
+      }, 2000);
+    }
+  };
+
   const addQuestions = async (newQs: Question[]) => {
-    const updated = [...newQs, ...questions];
-    setQuestions(updated);
-    await db.saveQuestions(updated);
+    await safeUpdate(async () => {
+      const updated = [...newQs, ...questions];
+      setQuestions(updated);
+      await db.saveQuestions(updated);
+    });
   };
 
   const updateQuestion = async (updatedQ: Question) => {
-    const updated = questions.map(q => q.id === updatedQ.id ? updatedQ : q);
-    setQuestions(updated);
-    await db.saveQuestions(updated);
+    await safeUpdate(async () => {
+      const updated = questions.map(q => q.id === updatedQ.id ? updatedQ : q);
+      setQuestions(updated);
+      await db.saveQuestions(updated);
+    });
   };
 
   const updateQuestionSeen = async (ids: string[]) => {
-    // Tăng seenCount chỉ khi học sinh trả lời đúng (hoặc hoàn thành bài thi)
-    const updated = questions.map(q => 
-      ids.includes(q.id) ? { ...q, seenCount: q.seenCount + 1 } : q
-    );
-    setQuestions(updated);
-    await db.saveQuestions(updated);
+    if (ids.length === 0) return;
+    await safeUpdate(async () => {
+      const updated = questions.map(q => 
+        ids.includes(q.id) ? { ...q, seenCount: q.seenCount + 1 } : q
+      );
+      setQuestions(updated);
+      await db.saveQuestions(updated);
+    });
   };
 
   const deleteQuestion = async (id: string) => {
-    const updated = questions.filter(q => q.id !== id);
-    setQuestions(updated);
-    await db.saveQuestions(updated);
+    await safeUpdate(async () => {
+      const updated = questions.filter(q => q.id !== id);
+      setQuestions(updated);
+      await db.saveQuestions(updated);
+    });
   };
 
   const addQuiz = async (quiz: Quiz) => {
-    const updated = [quiz, ...quizzes];
-    setQuizzes(updated);
-    await db.saveQuizzes(updated);
+    await safeUpdate(async () => {
+      const updated = [quiz, ...quizzes];
+      setQuizzes(updated);
+      await db.saveQuizzes(updated);
+    });
   };
 
   const updateQuiz = async (updatedQuiz: Quiz) => {
-    const updated = quizzes.map(q => q.id === updatedQuiz.id ? updatedQuiz : q);
-    setQuizzes(updated);
-    await db.saveQuizzes(updated);
+    await safeUpdate(async () => {
+      const updated = quizzes.map(q => q.id === updatedQuiz.id ? updatedQuiz : q);
+      setQuizzes(updated);
+      await db.saveQuizzes(updated);
+    });
   };
 
   const deleteQuiz = async (id: string) => {
-    const updated = quizzes.filter(q => q.id !== id);
-    setQuizzes(updated);
-    await db.deleteQuiz(id);
+    await safeUpdate(async () => {
+      const updated = quizzes.filter(q => q.id !== id);
+      setQuizzes(updated);
+      await db.deleteQuiz(id);
+    });
   };
 
   const saveResult = async (result: QuizResult) => {
-    setResults(prev => [result, ...prev]);
-    await db.addResult(result);
+    await safeUpdate(async () => {
+      setResults(prev => [result, ...prev]);
+      await db.addResult(result);
+    });
   };
 
   const handleLogin = (u: User | null) => {
@@ -149,9 +182,11 @@ const App: React.FC = () => {
 
   if (!user) {
     return <Login onLogin={handleLogin} accounts={accounts} onRegister={async (acc) => {
-      const updated = [...accounts, acc];
-      setAccounts(updated);
-      await db.saveAccount(acc);
+      await safeUpdate(async () => {
+        const updated = [...accounts, acc];
+        setAccounts(updated);
+        await db.saveAccount(acc);
+      });
     }} />;
   }
 
@@ -182,7 +217,6 @@ const App: React.FC = () => {
 
             <Route path="/learn" element={<LearningMode questions={questions} onMarkSeen={(id) => updateQuestionSeen([id])} />} />
             <Route path="/quiz/:id" element={<QuizTake quizzes={quizzes} user={user} onComplete={(ids, result) => {
-              // Ở chế độ thi, những câu trả lời đúng mới được tính là "đã thuộc"
               const correctQuestionIds = result ? Object.keys(result.answers).filter(qId => {
                 const q = questions.find(item => item.id === qId);
                 const correctChoice = q?.choices.find(c => c.isCorrect);
