@@ -17,42 +17,36 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* Tối ưu hóa cho vùng an toàn của iPhone (Notch & Home Indicator) */
         :root {
             --safe-top: env(safe-area-inset-top);
             --safe-bottom: env(safe-area-inset-bottom);
         }
         body {
-            padding-top: var(--safe-top);
-            padding-bottom: var(--safe-bottom);
+            padding-top: 0;
+            padding-bottom: 0;
             -webkit-tap-highlight-color: transparent;
             user-select: none;
+            overscroll-behavior-y: none;
         }
         input, textarea {
             user-select: text;
         }
-        html, body {
-            position: fixed;
-            overflow: hidden;
-            width: 100%;
-            height: 100%;
-        }
         #root {
-            height: 100%;
+            height: 100vh;
+            height: 100dvh;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
+            padding-bottom: var(--safe-bottom);
         }
-        /* Custom Scrollbar cho trải nghiệm cao cấp */
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #e2e8f0;
-            border-radius: 10px;
-        }
+        .safe-padding-top { padding-top: var(--safe-top); }
+        .safe-padding-bottom { padding-bottom: var(--safe-bottom); }
+        
+        /* Chống rung khi scroll trên iOS */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
     </style>
 <script type="importmap">
 {
@@ -70,8 +64,8 @@
 }
 </script>
 </head>
-<body class="bg-gray-50 text-gray-900">
-    <div id="root"></div>
+<body class="bg-[#f8fafc] text-slate-900">
+    <div id="root" class="custom-scrollbar"></div>
     <script type="module" src="/index.tsx"></script>
 </body>
 </html>

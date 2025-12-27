@@ -11,6 +11,8 @@ import LearningMode from './components/LearningMode';
 import QuestionManualAdd from './components/QuestionManualAdd';
 import StudentManagement from './components/StudentManagement';
 import SystemHistory from './components/SystemHistory';
+import QuizHistory from './components/QuizHistory';
+import MockExam from './components/MockExam';
 import QuizManagement from './components/QuizManagement';
 import Login from './components/Login';
 import { db } from './services/dbService';
@@ -237,12 +239,17 @@ const App: React.FC = () => {
             )}
 
             <Route path="/learn" element={<LearningMode questions={questions} userProgress={userProgress} onMarkSeen={(id) => updateQuestionSeen([id])} />} />
+            <Route path="/mock-exam" element={<MockExam questions={questions} user={user} onComplete={(ids, result) => {
+              updateQuestionSeen(ids);
+              if (result) saveResult(result);
+            }} />} />
+            <Route path="/my-history" element={<QuizHistory user={user} results={results} />} />
             <Route path="/quiz/:id" element={<QuizTake quizzes={quizzes} user={user} onComplete={(ids, result) => {
               updateQuestionSeen(ids);
               if (result) saveResult(result);
             }} />} />
             
-            <Route path="/quiz-review/:id" element={<QuizTake quizzes={quizzes} user={user} isReviewMode={true} allResults={results} />} />
+            <Route path="/quiz-review/:id" element={<QuizTake quizzes={quizzes} user={user} questions={questions} isReviewMode={true} allResults={results} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
