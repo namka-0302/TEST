@@ -6,7 +6,7 @@ import { Quiz, QuizResult, User, Question } from '../types';
 interface QuizTakeProps {
   quizzes: Quiz[];
   user: User;
-  questions?: Question[]; // Thêm ngân hàng câu hỏi để phục vụ Review bài thi thử
+  questions?: Question[];
   onComplete?: (questionIds: string[], result: QuizResult) => void;
   isReviewMode?: boolean;
   allResults?: QuizResult[];
@@ -15,8 +15,12 @@ interface QuizTakeProps {
 const QuizTake: React.FC<QuizTakeProps> = ({ quizzes, user, questions = [], onComplete, isReviewMode = false, allResults = [] }) => {
   const { id } = useParams<{ id: string }>();
   
-  // Tìm đề thi trong danh sách cố định
-  const fixedQuiz = quizzes.find(q => q.id === id);
+  // Logic tìm đề thi: Ưu tiên tìm theo ID trên URL, nếu không có ID và chỉ có 1 đề thì lấy đề đó (dành cho Thi thử)
+  const fixedQuiz = useMemo(() => {
+    if (id) return quizzes.find(q => q.id === id);
+    if (!isReviewMode && quizzes.length === 1) return quizzes[0];
+    return undefined;
+  }, [quizzes, id, isReviewMode]);
 
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -26,7 +30,6 @@ const QuizTake: React.FC<QuizTakeProps> = ({ quizzes, user, questions = [], onCo
   const [result, setResult] = useState<QuizResult | null>(null);
   const [reconstructedQuiz, setReconstructedQuiz] = useState<Quiz | null>(null);
 
-  // Logic khởi tạo đề thi và kết quả review
   useEffect(() => {
     if (isReviewMode) {
       const pastResult = allResults.find(r => r.quizId === id && r.userId === user.id);
@@ -34,7 +37,6 @@ const QuizTake: React.FC<QuizTakeProps> = ({ quizzes, user, questions = [], onCo
         setResult(pastResult);
         setAnswers(pastResult.answers);
         
-        // Nếu không tìm thấy đề thi cố định (đây là bài thi thử), ta tái cấu trúc đề từ các câu hỏi đã trả lời
         if (!fixedQuiz && questions.length > 0) {
           const answerIds = Object.keys(pastResult.answers);
           const quizQuestions = questions.filter(q => answerIds.includes(q.id));
@@ -53,7 +55,6 @@ const QuizTake: React.FC<QuizTakeProps> = ({ quizzes, user, questions = [], onCo
     }
   }, [isReviewMode, fixedQuiz, allResults, id, user.id, questions]);
 
-  // Sử dụng đề thi cố định hoặc đề thi được tái cấu trúc
   const quiz = fixedQuiz || reconstructedQuiz;
 
   useEffect(() => {
@@ -100,7 +101,7 @@ const QuizTake: React.FC<QuizTakeProps> = ({ quizzes, user, questions = [], onCo
     onComplete?.(quiz.questions.map(q => q.id), newResult);
   }, [quiz, answers, timeLeft, isFinished, onComplete, user]);
 
-  if (!quiz && !isReviewMode) return <div className="text-center py-20 font-black text-slate-400">ĐANG TẢI BÀI THI...</div>;
+  if (!quiz && !isReviewMode) return <div className="text-center py-40 font-black text-slate-300 animate-pulse uppercase tracking-widest">Đang khởi tạo bài thi...</div>;
   if (!quiz && isReviewMode && !result) return <div className="text-center py-20 font-black text-slate-400">KHÔNG TÌM THẤY DỮ LIỆU LỊCH SỬ</div>;
 
   const currentQuestion = quiz?.questions[currentQuestionIdx];
@@ -118,7 +119,7 @@ const QuizTake: React.FC<QuizTakeProps> = ({ quizzes, user, questions = [], onCo
               <div className="flex items-center gap-4">
                 <button onClick={() => setShowReview(false)} className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-900 active:scale-90 transition-all"><i className="fas fa-chevron-left"></i></button>
                 <div>
-                  <h3 className="font-black text-lg leading-none">{quiz.title}</h3>
+                  <h3 className="font-black text-lg leading-none line-clamp-1">{quiz.title}</h3>
                   <p className="text-xs font-bold text-indigo-600 mt-1">{result.score}/{result.totalQuestions} câu đúng</p>
                 </div>
               </div>
